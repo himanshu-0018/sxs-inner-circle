@@ -35,7 +35,15 @@ function showSection(section, el) {
     document.querySelectorAll('.mobile-admin-nav button, .admin-sidebar .menu-item').forEach(b => {
         if (b.textContent.toLowerCase().includes(section.slice(0, 4))) b.classList.add('active');
     });
-    const loaders = { dashboard: loadStats, mentorships: loadMentorships, videos: loadVideos, keys: loadKeys, users: loadUsers };
+    const loaders = { 
+    dashboard: loadStats, 
+    mentorships: loadMentorships, 
+    videos: loadVideos, 
+    upload: loadUploadOptions, 
+    keys: loadKeys, 
+    users: loadUsers,
+    profile: loadProfile  // ← ADD THIS
+};
     loaders[section]?.();
 }
 
@@ -218,6 +226,138 @@ async function loadUsers() {
 async function toggleUser(id) { const d = await api(`/admin/users/${id}/toggle`, 'PATCH'); showAlert('success', d.message); loadUsers(); loadStats(); }
 async function unblockUser(id) { const d = await api(`/admin/users/${id}/unblock`, 'PATCH'); showAlert('success', d.message); loadUsers(); loadStats(); }
 async function deleteUser(id) { if (!confirm('Delete this user permanently?')) return; await api(`/admin/users/${id}`, 'DELETE'); loadUsers(); loadStats(); }
+
+// ===== PROFILE & CHANGE PASSWORD =====
+async function loadProfile() {
+    try {
+        const data = await api('/auth/me');
+        if (!data.success) return;
+
+        const u = data.user;
+        document.getElementById('profileName').textContent = u.name;
+        document.getElementById('profileEmail').textContent = u.email;
+
+        const roleEl = document.getElementById('profileRole');
+        if (u.role === 'superadmin') {
+            roleEl.textContent = '👑 Super Admin';
+            roleEl.className = 'status-badge badge-active';
+        } else {
+            roleEl.textContent = '🛡️ Admin';
+            roleEl.className = 'status-badge badge-available';
+        }
+    } catch (err) {
+        console.error('Profile load error:', err);
+    }
+}
+
+// Toggle password visibility
+function togglePw(id) {
+    const input = document.getElementById(id);
+    input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+// Password strength checker
+document.getElementById('newPassword')?.addEventListener('input', function () {
+    const val = this.value;
+    const bar = document.getElementById('strengthBar');
+    const text = document.getElementById('strengthText');
+    let strength = 0;
+
+    if (val.length >= 6) strength++;
+    if (val.length >= 10) strength++;
+    if (/[A-Z]/.test(val)) strength++;
+    if (/[0-9]/.test(val)) strength++;
+    if (/[^A-Za-z0-9]/.test(val)) strength++;
+
+    const levels = [
+        { w: '0%', color: 'transparent', label: '' },
+        { w: '25%', color: '#ff4757', label: 'Weak' },
+        { w: '50%', color: '#ffa502', label: 'Fair' },
+        { w: '75%', color: '#1e90ff', label: 'Good' },
+        { w: '90%', color: '#2ed573', label: 'Strong' },
+        { w: '100%', color: '#2ed573', label: '💪 Very Strong' }
+    ];
+
+    const level = levels[Math.min(strength, 5)];
+    if (bar) {
+        bar.style.width = level.w;
+        bar.style.background = level.color;
+    }
+    if (text) {
+        text.textContent = level.label;
+        text.style.color = level.color;
+    }
+});
+
+// Change password form
+document.getElementById('changePasswordForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+    const btn = document.getElementById('changePwBtn');
+
+    // Show alerts inside profile section
+    function showPwAlert(type, msg) {
+        const el = document.getElementById(type === 'error' ? 'pwErrorAlert' : 'pwSuccessAlert');
+        const other = document.getElementById(type === 'error' ? 'pwSuccessAlert' : 'pwErrorAlert');
+        if (other) other.classList.remove('show');
+        if (el) {
+            el.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 5000);
+        }
+    }
+
+    // Validate
+    if (newPassword !== confirmNewPassword) {
+        showPwAlert('error', 'New passwords do not match!');
+        return;
+    }
+
+    if (newPassword === currentPassword) {
+        showPwAlert('error', 'New password must be different from current password.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Changing Password...';
+
+    try {
+        const res = await fetch(`${API}/auth/change-password`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ currentPassword, newPassword })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            showPwAlert('success', '✅ Password changed! Logging out in 3 seconds...');
+            document.getElementById('changePasswordForm').reset();
+            document.getElementById('strengthBar').style.width = '0%';
+            document.getElementById('strengthText').textContent = '';
+
+            // Auto logout after 3 seconds
+            setTimeout(() => {
+                localStorage.clear();
+                window.location.href = '/login.html';
+            }, 3000);
+        } else {
+            showPwAlert('error', data.message);
+            btn.disabled = false;
+            btn.textContent = '🔑 Change Password';
+        }
+    } catch (err) {
+        showPwAlert('error', 'Network error. Try again.');
+        btn.disabled = false;
+        btn.textContent = '🔑 Change Password';
+    }
+});
 
 function logout() { localStorage.clear(); window.location.href = '/login.html'; }
 loadStats();
