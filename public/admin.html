@@ -22,6 +22,7 @@
         <button onclick="showSection('videos',this)">🎬 Videos</button>
         <button onclick="showSection('keys',this)">🔑 Keys</button>
         <button onclick="showSection('users',this)">👥 Users</button>
+        <button onclick="showSection('profile',this)">👤 Profile</button>
     </div>
     <div class="admin-layout">
         <aside class="admin-sidebar">
@@ -30,10 +31,99 @@
             <button class="menu-item" onclick="showSection('videos',this)"><span>🎬</span> Videos</button>
             <button class="menu-item" onclick="showSection('keys',this)"><span>🔑</span> Access Keys</button>
             <button class="menu-item" onclick="showSection('users',this)"><span>👥</span> Users</button>
+            <button class="menu-item" onclick="showSection('profile',this)"><span>👤</span> My Profile</button>
         </aside>
         <main class="admin-content">
             <div class="alert alert-success" id="successAlert"></div>
             <div class="alert alert-error" id="errorAlert"></div>
+            <!-- Profile Section -->
+<section id="section-profile" style="display:none;">
+    <div style="max-width:500px;">
+        <h2 style="margin-bottom:20px;">👤 My Profile</h2>
+
+        <!-- Profile Info Card -->
+        <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:24px;margin-bottom:20px;">
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+                <div style="width:60px;height:60px;background:var(--gradient);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;">
+                    👑
+                </div>
+                <div>
+                    <h3 id="profileName" style="color:#fff;font-size:1.2rem;"></h3>
+                    <p id="profileEmail" style="color:var(--text-muted);font-size:0.85rem;"></p>
+                    <span id="profileRole" class="status-badge badge-active" style="margin-top:4px;display:inline-block;"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change Password Card -->
+        <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:24px;">
+            <h3 style="margin-bottom:18px;font-size:1.1rem;">🔑 Change Password</h3>
+
+            <div class="alert alert-success" id="pwSuccessAlert"></div>
+            <div class="alert alert-error" id="pwErrorAlert"></div>
+
+            <form id="changePasswordForm">
+                <div class="form-group">
+                    <label>Current Password</label>
+                    <div style="position:relative;">
+                        <input type="password" id="currentPassword"
+                            placeholder="Enter current password" required
+                            style="padding-right:45px;">
+                        <button type="button" onclick="togglePw('currentPassword')"
+                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">
+                            👁
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <div style="position:relative;">
+                        <input type="password" id="newPassword"
+                            placeholder="Min 6 characters" required minlength="6"
+                            style="padding-right:45px;">
+                        <button type="button" onclick="togglePw('newPassword')"
+                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">
+                            👁
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Confirm New Password</label>
+                    <div style="position:relative;">
+                        <input type="password" id="confirmNewPassword"
+                            placeholder="Re-enter new password" required minlength="6"
+                            style="padding-right:45px;">
+                        <button type="button" onclick="togglePw('confirmNewPassword')"
+                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">
+                            👁
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Password Strength Indicator -->
+                <div style="margin-bottom:16px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                        <span style="font-size:0.78rem;color:var(--text-muted);">Password Strength</span>
+                        <span id="strengthText" style="font-size:0.78rem;"></span>
+                    </div>
+                    <div style="width:100%;height:5px;background:var(--card-border);border-radius:10px;overflow:hidden;">
+                        <div id="strengthBar" style="height:100%;width:0%;border-radius:10px;transition:all 0.3s;"></div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="changePwBtn">
+                    🔑 Change Password
+                </button>
+            </form>
+
+            <div style="margin-top:16px;padding:12px;background:rgba(255,165,2,0.08);border:1px solid rgba(255,165,2,0.2);border-radius:8px;">
+                <p style="color:var(--warning);font-size:0.78rem;line-height:1.5;">
+                    ⚠️ After changing password, you will be logged out and need to login again with new password.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
 
             <!-- Dashboard -->
             <section id="section-dashboard">
