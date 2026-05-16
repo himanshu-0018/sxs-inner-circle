@@ -35,10 +35,10 @@ app.use(cors({ origin: false }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Fix for Railway - use 1 instead of true
+// Fix for Railway
 app.set('trust proxy', 1);
 
-// Rate limiting with trustProxy validation disabled
+// Rate limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 200,
@@ -88,22 +88,29 @@ mongoose.connect(process.env.MONGODB_URI)
         const User = require('./models/User');
         const Mentorship = require('./models/Mentorship');
 
-        // Create default admin if not exists
+        // Force reset admin if RESET_ADMIN=true
         if (process.env.RESET_ADMIN === 'true') {
-    await User.deleteMany({ role: 'admin' });
-    console.log('🗑️ Old admin deleted');
-}
-const adminExists = await User.findOne({ role: 'admin' });
-if (!adminExists) {
-            // Create default mentorship
-            const defaultMentorship = new Mentorship({
-                name: 'SxS Inner Circle',
-                description: 'The main crypto mentorship program with live classes and recordings.',
-                icon: '👑',
-                color: '#6c5ce7',
-                order: 1
-            });
-            await defaultMentorship.save();
+            await User.deleteMany({ role: 'admin' });
+            console.log('🗑️ Old admin deleted');
+        }
+
+        // Create default admin if not exists
+        const adminExists = await User.findOne({ role: 'admin' });
+        if (!adminExists) {
+
+            // Create default mentorship only if not exists
+            let defaultMentorship = await Mentorship.findOne({ slug: 'sxs-inner-circle' });
+            if (!defaultMentorship) {
+                defaultMentorship = new Mentorship({
+                    name: 'SxS Inner Circle',
+                    description: 'The main crypto mentorship program with live classes and recordings.',
+                    icon: '👑',
+                    color: '#6c5ce7',
+                    order: 1
+                });
+                await defaultMentorship.save();
+                console.log('🎓 Default mentorship created');
+            }
 
             // Create admin user
             const admin = new User({
@@ -117,7 +124,6 @@ if (!adminExists) {
             await admin.save();
 
             console.log('👤 Admin created:', process.env.ADMIN_EMAIL);
-            console.log('🎓 Default mentorship "SxS Inner Circle" created');
         }
 
         const PORT = process.env.PORT || 3000;
