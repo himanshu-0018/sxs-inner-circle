@@ -17,14 +17,20 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
             scriptSrcAttr: ["'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:", "blob:"],
-            mediaSrc: ["'self'", "blob:", "data:", "*"],
-            connectSrc: ["'self'", "*"],
-            frameSrc: ["'none'"],
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            mediaSrc: ["'self'", "blob:", "data:", "https:", "*"],
+            connectSrc: ["'self'", "https:"],
+            frameSrc: [
+                "'self'",
+                "https://drive.google.com",
+                "https://www.youtube.com",
+                "https://player.vimeo.com"
+            ],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],
             formAction: ["'self'"],
-            workerSrc: ["'self'", "blob:"]
+            workerSrc: ["'self'", "blob:"],
+            scriptSrcAttr: ["'unsafe-inline'"]
         }
     },
     crossOriginEmbedderPolicy: false,
