@@ -62,27 +62,36 @@ router.get('/mentorship/:mentorshipId', auth, async (req, res) => {
 router.get('/watch/:id', auth, async (req, res) => {
     try {
         const video = await Video.findById(req.params.id).populate('mentorship');
+
         if (!video || !video.isActive) {
-            return res.status(404).json({ success: false, message: 'Video not found.' });
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Video not found.' 
+            });
         }
 
-        const userMentorshipIds = req.user.mentorships.map(m => m._id.toString());
-        if (!userMentorshipIds.includes(video.mentorship._id.toString()) && req.user.role !== 'admin') {
-            return res.status(403).json({ success: false, message: 'No access.' });
+        // Check mentorship access
+        const userMentorshipIds = req.user.mentorships.map(m => 
+            m._id ? m._id.toString() : m.toString()
+        );
+        
+        const videoMentorshipId = video.mentorship._id 
+            ? video.mentorship._id.toString() 
+            : video.mentorship.toString();
+
+        console.log('User mentorships:', userMentorshipIds);
+        console.log('Video mentorship:', videoMentorshipId);
+        console.log('Has access:', userMentorshipIds.includes(videoMentorshipId));
+
+        if (!userMentorshipIds.includes(videoMentorshipId) && req.user.role !== 'admin') {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'You do not have access to this video.' 
+            });
         }
 
         video.viewCount += 1;
         await video.save();
-
-        // Generate a secure one-time token for streaming
-        const streamToken = crypto.randomBytes(32).toString('hex');
-        secureTokens.set(streamToken, {
-            videoId: video._id.toString(),
-            userId: req.user._id.toString(),
-            videoUrl: video.videoUrl,
-            expires: Date.now() + 30000, // 30 second expiry
-            used: false
-        });
 
         res.json({
             success: true,
@@ -90,11 +99,11 @@ router.get('/watch/:id', auth, async (req, res) => {
                 id: video._id,
                 title: video.title,
                 description: video.description,
-                mentorship: video.mentorship.name,
+                videoUrl: video.videoUrl,
+                mentorship: video.mentorship ? video.mentorship.name : '',
                 viewCount: video.viewCount,
                 createdAt: video.createdAt
             },
-            streamToken,
             watermark: {
                 name: req.user.name,
                 email: req.user.email,
@@ -102,8 +111,13 @@ router.get('/watch/:id', auth, async (req, res) => {
                 id: req.user._id.toString().slice(-6).toUpperCase()
             }
         });
+
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error loading video.' });
+        console.error('Watch error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error loading video: ' + error.message 
+        });
     }
 });
 
