@@ -1,0 +1,36 @@
+<!-- public/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dashboard - SxS Inner Circle</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <nav class="navbar">
+        <a href="/dashboard.html" class="logo"><span>👑</span> SxS Inner Circle</a>
+        <div class="nav-links">
+            <span class="nav-user-name" id="userGreeting" style="color:var(--text-muted);font-size:0.85rem;"></span>
+            <button onclick="logout()" class="btn-nav-primary">Logout</button>
+        </div>
+    </nav>
+    <div class="dashboard" id="mainContent">
+        <div class="welcome-banner">
+            <h1 id="welcomeText">Welcome back! 👋</h1>
+            <p>Your mentorship recordings are below. All videos are watermarked with your identity.</p>
+        </div>
+        <div id="contentArea">
+            <div class="loading-spinner"><div class="spinner"></div></div>
+        </div>
+    </div>
+    <!-- Blocked Screen -->
+    <div class="blocked-screen" id="blockedScreen" style="display:none;">
+        <div class="icon">🚫</div>
+        <h1>Account Blocked</h1>
+        <p id="blockMessage">Your account has been blocked due to suspicious activity. Please contact admin.</p>
+    </div>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SxS Inner Circle - Crypto Mentorship</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👑</text></svg>">
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <nav class="navbar">
+        <a href="/" class="logo"><span>👑</span> SxS Inner Circle</a>
+        <div class="nav-links" id="navLinks">
+            <a href="login.html">Login</a>
+            <a href="register.html" class="btn-nav-primary">Join Now</a>
+        </div>
+    </nav>
+    <section class="hero">
+        <div class="hero-badge">🔒 INVITE ONLY</div>
+        <h1>SxS Inner Circle</h1>
+        <p>Exclusive crypto mentorship with protected video recordings. Learn from live sessions, access recordings anytime — all content is digitally watermarked to your identity.</p>
+        <a href="register.html" class="btn btn-primary">Join With Access Key →</a>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="icon">🎬</div>
+                <h3>HD Recordings</h3>
+                <p>Watch live class recordings anytime with your personal access.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🔒</div>
+                <h3>Multi-Layer Watermark</h3>
+                <p>Your name & email are embedded in 6 moving layers — impossible to remove.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🔑</div>
+                <h3>Unique Access Key</h3>
+                <p>Each student gets a one-time key. No key sharing, no leaks.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🛡️</div>
+                <h3>IP Protection</h3>
+                <p>Auto-blocks accounts accessed from 5+ different devices.</p>
+            </div>
+        </div>
+    </section>
+    <script>
+        const t = localStorage.getItem('token');
+        if(t){
+            const u = JSON.parse(localStorage.getItem('user')||'{}');
+            window.location.href = u.role==='admin' ? '/admin.html' : '/dashboard.html';
+        }
+    </script>
+</body>
+</html>

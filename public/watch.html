@@ -1,0 +1,108 @@
+<!-- public/watch.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Watch - SxS Inner Circle</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Prevent caching of this page -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+</head>
+<body class="no-select" oncontextmenu="return false" ondragstart="return false" onselectstart="return false">
+    <div class="bg-animation"></div>
+
+    <nav class="navbar">
+        <a href="/dashboard.html" class="logo"><span>👑</span> SxS</a>
+        <div class="nav-links">
+            <a href="/dashboard.html">← Back</a>
+            <button onclick="logout()" class="btn-nav-primary">Logout</button>
+        </div>
+    </nav>
+
+    <div class="player-container">
+        <button class="back-btn" onclick="history.back()">← Back to lectures</button>
+
+        <!-- SECURE VIDEO PLAYER CONTAINER -->
+        <div class="video-player-wrapper" id="playerWrapper"
+             oncontextmenu="return false"
+             ondragstart="return false">
+
+            <!-- Custom secure video element -->
+            <video id="videoPlayer"
+                   playsinline
+                   webkit-playsinline
+                   controlsList="nodownload noplaybackrate nofullscreen"
+                   disablePictureInPicture
+                   disableRemotePlayback
+                   oncontextmenu="return false"
+                   ondragstart="return false"
+                   crossorigin="anonymous"
+                   preload="none">
+            </video>
+
+            <!-- Custom Controls Overlay (replaces native controls) -->
+            <div class="custom-controls" id="customControls">
+                <div class="controls-progress-wrap" id="progressWrap">
+                    <div class="controls-progress-bar" id="progressBar"></div>
+                    <div class="controls-progress-buffered" id="bufferedBar"></div>
+                    <div class="controls-progress-played" id="playedBar"></div>
+                    <div class="controls-progress-handle" id="progressHandle"></div>
+                </div>
+                <div class="controls-bottom">
+                    <div class="controls-left">
+                        <button class="ctrl-btn" id="playPauseBtn" onclick="togglePlay()">▶</button>
+                        <div class="ctrl-volume">
+                            <button class="ctrl-btn" id="muteBtn" onclick="toggleMute()">🔊</button>
+                            <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="1" class="volume-slider">
+                        </div>
+                        <span class="ctrl-time" id="timeDisplay">0:00 / 0:00</span>
+                    </div>
+                    <div class="controls-right">
+                        <button class="ctrl-btn" id="fullscreenBtn" onclick="toggleFullscreen()">⛶</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WATERMARK LAYERS - 6 HARDCODED LAYERS -->
+            <!-- Layer 1: Moving texts -->
+            <div class="watermark-layer" id="wmLayer1"></div>
+            <!-- Layer 2: Static grid -->
+            <div class="watermark-layer" id="wmLayer2">
+                <div class="wm-grid-layer" id="wmGrid"></div>
+            </div>
+            <!-- Layer 3: Center pulse -->
+            <div class="wm-center" id="wmCenter"></div>
+            <!-- Layer 4: Corners -->
+            <div class="wm-corner tl" id="wmTL"></div>
+            <div class="wm-corner tr" id="wmTR"></div>
+            <div class="wm-corner bl" id="wmBL"></div>
+            <div class="wm-corner br" id="wmBR"></div>
+            <!-- Layer 5: Random positions (JS injected) -->
+            <!-- Layer 6: Canvas layer (JS injected) -->
+
+            <!-- Anti-download invisible overlay -->
+            <div class="anti-download-shield" id="antiDownloadShield"></div>
+        </div>
+
+        <div class="video-info-panel">
+            <h3 id="videoTitle">Loading...</h3>
+            <p id="videoDescription"></p>
+            <div class="video-info-meta">
+                <span id="videoMentorship"></span>
+                <span id="videoViews"></span>
+                <span id="videoDate"></span>
+            </div>
+        </div>
+
+        <div class="warning-banner">
+            ⚠️ This video is protected with 6-layer dynamic watermarking tied to your identity
+            (<span id="wmPreview"></span>). Unauthorized sharing = permanent ban + legal action.
+        </div>
+    </div>
+
+    <script src="js/watch.js"></script>
+</body>
+</html>

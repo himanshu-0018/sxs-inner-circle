@@ -1,0 +1,151 @@
+<!-- public/admin.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Admin - SxS Inner Circle</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <nav class="navbar">
+        <a href="/admin.html" class="logo"><span>⚙️</span> Admin Panel</a>
+        <div class="nav-links">
+            <button onclick="logout()" class="btn-nav-primary">Logout</button>
+        </div>
+    </nav>
+    <!-- Mobile Navigation -->
+    <div class="mobile-admin-nav" id="mobileNav">
+        <button class="active" onclick="showSection('dashboard',this)">📊 Stats</button>
+        <button onclick="showSection('mentorships',this)">🎓 Programs</button>
+        <button onclick="showSection('videos',this)">🎬 Videos</button>
+        <button onclick="showSection('keys',this)">🔑 Keys</button>
+        <button onclick="showSection('users',this)">👥 Users</button>
+    </div>
+    <div class="admin-layout">
+        <aside class="admin-sidebar">
+            <button class="menu-item active" onclick="showSection('dashboard',this)"><span>📊</span> Dashboard</button>
+            <button class="menu-item" onclick="showSection('mentorships',this)"><span>🎓</span> Mentorships</button>
+            <button class="menu-item" onclick="showSection('videos',this)"><span>🎬</span> Videos</button>
+            <button class="menu-item" onclick="showSection('keys',this)"><span>🔑</span> Access Keys</button>
+            <button class="menu-item" onclick="showSection('users',this)"><span>👥</span> Users</button>
+        </aside>
+        <main class="admin-content">
+            <div class="alert alert-success" id="successAlert"></div>
+            <div class="alert alert-error" id="errorAlert"></div>
+
+            <!-- Dashboard -->
+            <section id="section-dashboard">
+                <h2 style="margin-bottom:18px;">📊 Dashboard</h2>
+                <div class="stats-grid" id="statsGrid"><div class="loading-spinner"><div class="spinner"></div></div></div>
+            </section>
+
+            <!-- Mentorships -->
+            <section id="section-mentorships" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>🎓 Mentorship Programs</h3>
+                        <button class="btn btn-primary btn-small" onclick="openModal('mentorshipModal')">+ Create Program</button>
+                    </div>
+                    <div class="table-scroll">
+                        <table><thead><tr>
+                            <th>Program</th><th>Videos</th><th>Students</th><th>Status</th><th>Actions</th>
+                        </tr></thead><tbody id="mentorshipsBody"></tbody></table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Videos -->
+            <section id="section-videos" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>🎬 All Videos</h3>
+                        <button class="btn btn-primary btn-small" onclick="openModal('videoModal')">+ Add Video</button>
+                    </div>
+                    <div class="table-scroll">
+                        <table><thead><tr>
+                            <th>Title</th><th>Program</th><th>Views</th><th>Status</th><th>Actions</th>
+                        </tr></thead><tbody id="videosBody"></tbody></table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Keys -->
+            <section id="section-keys" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>🔑 Access Keys</h3>
+                        <button class="btn btn-primary btn-small" onclick="openModal('keyModal')">+ Generate Keys</button>
+                    </div>
+                    <div class="table-scroll">
+                        <table><thead><tr>
+                            <th>Key</th><th>Programs</th><th>Status</th><th>Used By</th><th>Expires</th><th>Actions</th>
+                        </tr></thead><tbody id="keysBody"></tbody></table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Users -->
+            <section id="section-users" style="display:none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>👥 Students</h3>
+                    </div>
+                    <div class="table-scroll">
+                        <table><thead><tr>
+                            <th>Name</th><th>Email</th><th>Programs</th><th>IPs</th><th>Status</th><th>Actions</th>
+                        </tr></thead><tbody id="usersBody"></tbody></table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Create Mentorship Modal -->
+    <div class="modal-backdrop" id="mentorshipModal">
+        <div class="modal">
+            <h3>🎓 Create Mentorship Program</h3>
+            <form id="mentorshipForm">
+                <div class="form-group"><label>Program Name *</label><input type="text" id="mName" placeholder="e.g., May Month Mentorship" required></div>
+                <div class="form-group"><label>Description</label><textarea id="mDesc" rows="2" placeholder="Brief description..."></textarea></div>
+                <div class="form-group"><label>Icon (emoji)</label><input type="text" id="mIcon" value="🎓" maxlength="4"></div>
+                <div class="form-group"><label>Color</label><input type="color" id="mColor" value="#6c5ce7" style="height:40px;"></div>
+                <div style="display:flex;gap:10px;"><button type="submit" class="btn btn-primary">Create</button><button type="button" class="btn btn-secondary" onclick="closeModal('mentorshipModal')">Cancel</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Video Modal -->
+    <div class="modal-backdrop" id="videoModal">
+        <div class="modal">
+            <h3>🎬 Add Video</h3>
+            <form id="videoForm">
+                <div class="form-group"><label>Title *</label><input type="text" id="vTitle" placeholder="e.g., Class 1 - Bitcoin Basics" required></div>
+                <div class="form-group"><label>Description</label><textarea id="vDesc" rows="2" placeholder="Brief description..."></textarea></div>
+                <div class="form-group"><label>Mentorship Program *</label><select id="vMentorship" required><option value="">Select program</option></select></div>
+                <div class="form-group"><label>Video URL * (MP4 direct link / Google Drive / Cloudinary)</label><input type="url" id="vUrl" placeholder="https://..." required></div>
+                <div class="form-group"><label>Order (1 = first)</label><input type="number" id="vOrder" value="0" min="0"></div>
+                <div style="display:flex;gap:10px;"><button type="submit" class="btn btn-primary">Add Video</button><button type="button" class="btn btn-secondary" onclick="closeModal('videoModal')">Cancel</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Generate Keys Modal -->
+    <div class="modal-backdrop" id="keyModal">
+        <div class="modal">
+            <h3>🔑 Generate Access Keys</h3>
+            <form id="keyForm">
+                <div class="form-group"><label>Number of Keys (1-100)</label><input type="number" id="kCount" min="1" max="100" value="1"></div>
+                <div class="form-group"><label>Valid for (days)</label><input type="number" id="kExpiry" min="1" max="365" value="30"></div>
+                <div class="form-group"><label>Assign to Programs</label><div class="checkbox-group" id="kMentorships"></div></div>
+                <div class="form-group"><label>Note</label><input type="text" id="kNote" placeholder="e.g., May Batch Students"></div>
+                <div style="display:flex;gap:10px;"><button type="submit" class="btn btn-primary">Generate</button><button type="button" class="btn btn-secondary" onclick="closeModal('keyModal')">Cancel</button></div>
+            </form>
+            <div id="generatedKeys" style="margin-top:16px;"></div>
+        </div>
+    </div>
+
+    <script src="js/admin.js"></script>
+</body>
+</html>
