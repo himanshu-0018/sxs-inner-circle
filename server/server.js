@@ -89,8 +89,12 @@ mongoose.connect(process.env.MONGODB_URI)
         const Mentorship = require('./models/Mentorship');
 
         // Create default admin if not exists
-        const adminExists = await User.findOne({ role: 'admin' });
-        if (!adminExists) {
+        if (process.env.RESET_ADMIN === 'true') {
+    await User.deleteMany({ role: 'admin' });
+    console.log('🗑️ Old admin deleted');
+}
+const adminExists = await User.findOne({ role: 'admin' });
+if (!adminExists) {
             // Create default mentorship
             const defaultMentorship = new Mentorship({
                 name: 'SxS Inner Circle',
