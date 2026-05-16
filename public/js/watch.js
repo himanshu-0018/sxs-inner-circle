@@ -15,67 +15,86 @@
     // =============================================
     // LOAD VIDEO
     // =============================================
-    async function loadVideo() {
-        try {
-            const res = await fetch(`${API}/videos/watch/${videoId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
+async function loadVideo() {
+    try {
+        const res = await fetch(`${API}/videos/watch/${videoId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-            if (data.blocked) {
-                document.body.innerHTML = `
-                    <div class="blocked-screen" style="display:flex;">
-                        <div class="icon">🚫</div>
-                        <h1>Account Blocked</h1>
-                        <p>${data.message}</p>
-                    </div>`;
-                return;
-            }
+        const data = await res.json();
 
-            if (!data.success) {
-                alert(data.message || 'Video not found');
-                window.location.href = '/dashboard.html';
-                return;
-            }
+        console.log('Video API Response:', data); // Debug log
 
-            const { video, watermark } = data;
-
-            // Set video info
-            document.getElementById('videoTitle').textContent = video.title;
-            document.getElementById('videoDescription').textContent = video.description || '';
-            document.getElementById('videoMentorship').textContent = `📂 ${video.mentorship}`;
-            document.getElementById('videoViews').textContent = `👁 ${video.viewCount} views`;
-            document.getElementById('videoDate').textContent = `📅 ${new Date(video.createdAt).toLocaleDateString()}`;
-            document.getElementById('wmPreview').textContent = `${watermark.name} • ${watermark.email}`;
-            document.title = `${video.title} - SxS Inner Circle`;
-
-            // Convert Google Drive URL to embed URL
-            const embedUrl = getEmbedUrl(video.videoUrl);
-
-            // Load iframe
-            const frame = document.getElementById('videoFrame');
-            frame.src = embedUrl;
-            frame.style.display = 'block';
-
-            // Hide loading after iframe loads
-            frame.addEventListener('load', () => {
-                document.getElementById('playerLoading').style.display = 'none';
-            });
-
-            // Fallback hide loading after 5 seconds
-            setTimeout(() => {
-                document.getElementById('playerLoading').style.display = 'none';
-            }, 5000);
-
-            // Build watermarks
-            buildWatermarks(watermark);
-
-        } catch (err) {
-            console.error(err);
-            alert('Error loading video. Please try again.');
-            window.location.href = '/dashboard.html';
+        if (data.blocked) {
+            document.body.innerHTML = `
+                <div class="blocked-screen" style="display:flex;">
+                    <div class="icon">🚫</div>
+                    <h1>Account Blocked</h1>
+                    <p>${data.message}</p>
+                </div>`;
+            return;
         }
+
+        if (!data.success) {
+            alert(data.message || 'Video not found');
+            window.location.href = '/dashboard.html';
+            return;
+        }
+
+        // Safe destructuring with fallbacks
+        const video = data.video || {};
+        const watermark = data.watermark || {
+            name: user.name || 'User',
+            email: user.email || '',
+            phone: '',
+            id: 'XXXXXX'
+        };
+
+        // Set video info safely
+        document.getElementById('videoTitle').textContent = video.title || 'Video';
+        document.getElementById('videoDescription').textContent = video.description || '';
+        document.getElementById('videoMentorship').textContent = `📂 ${video.mentorship || ''}`;
+        document.getElementById('videoViews').textContent = `👁 ${video.viewCount || 0} views`;
+        document.getElementById('videoDate').textContent = `📅 ${video.createdAt ? new Date(video.createdAt).toLocaleDateString() : ''}`;
+        document.getElementById('wmPreview').textContent = `${watermark.name} • ${watermark.email}`;
+        document.title = `${video.title || 'Watch'} - SxS Inner Circle`;
+
+        // Convert Google Drive URL to embed URL
+        const embedUrl = getEmbedUrl(video.videoUrl || '');
+        console.log('Embed URL:', embedUrl); // Debug log
+
+        if (!embedUrl) {
+            alert('Video URL not found. Contact admin.');
+            window.location.href = '/dashboard.html';
+            return;
+        }
+
+        // Load iframe
+        const frame = document.getElementById('videoFrame');
+        frame.src = embedUrl;
+        frame.style.display = 'block';
+
+        // Hide loading after iframe loads
+        frame.addEventListener('load', () => {
+            const loading = document.getElementById('playerLoading');
+            if (loading) loading.style.display = 'none';
+        });
+
+        // Fallback hide loading after 5 seconds
+        setTimeout(() => {
+            const loading = document.getElementById('playerLoading');
+            if (loading) loading.style.display = 'none';
+        }, 5000);
+
+        // Build watermarks
+        buildWatermarks(watermark);
+
+    } catch (err) {
+        console.error('loadVideo error:', err);
+        alert('Error loading video: ' + err.message);
+        window.location.href = '/dashboard.html';
     }
+}
 
     // =============================================
     // CONVERT ANY GOOGLE DRIVE URL TO EMBED URL
