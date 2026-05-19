@@ -360,4 +360,13 @@ document.getElementById('changePasswordForm')?.addEventListener('submit', async 
 });
 
 function logout() { localStorage.clear(); window.location.href = '/login.html'; }
+// Initial load - load all data on page open
 loadStats();
+
+// Also preload mentorships and videos in background
+setTimeout(() => {
+    loadMentorships();
+    loadVideos();
+    loadKeys();
+    loadUsers();
+}, 500);
