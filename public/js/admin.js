@@ -6,11 +6,24 @@ if (!token || user.role !== 'admin') window.location.href = '/login.html';
 
 const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-async function api(url, method = 'GET', body = null) {
-    const opts = { method, headers };
-    if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(`${API}${url}`, opts);
-    return res.json();
+async function api(url, method, body) {
+    try {
+        const opts = { method: method || 'GET', headers };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(`${API}${url}`, opts);
+
+        // Handle unauthorized - redirect to login
+        if (res.status === 401 || res.status === 403) {
+            localStorage.clear();
+            window.location.href = '/login.html';
+            return { success: false };
+        }
+
+        return res.json();
+    } catch (err) {
+        console.error('API Error:', err);
+        return { success: false, message: 'Network error. Check connection.' };
+    }
 }
 
 function showAlert(type, msg) {
@@ -27,24 +40,32 @@ function openModal(id) { document.getElementById(id).classList.add('show'); if (
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
 function showSection(section, el) {
+    // Hide all sections
     document.querySelectorAll('[id^="section-"]').forEach(s => s.style.display = 'none');
-    document.getElementById(`section-${section}`).style.display = 'block';
-    document.querySelectorAll('.admin-sidebar .menu-item, .mobile-admin-nav button').forEach(b => b.classList.remove('active'));
+
+    // Show selected section
+    const target = document.getElementById(`section-${section}`);
+    if (target) target.style.display = 'block';
+
+    // Remove active from all buttons
+    document.querySelectorAll('.admin-sidebar .menu-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.mobile-admin-nav button').forEach(b => b.classList.remove('active'));
+
+    // Set active on clicked button
     if (el) el.classList.add('active');
-    // Also update other nav
-    document.querySelectorAll('.mobile-admin-nav button, .admin-sidebar .menu-item').forEach(b => {
-        if (b.textContent.toLowerCase().includes(section.slice(0, 4))) b.classList.add('active');
-    });
-    const loaders = { 
-    dashboard: loadStats, 
-    mentorships: loadMentorships, 
-    videos: loadVideos, 
-    upload: loadUploadOptions, 
-    keys: loadKeys, 
-    users: loadUsers,
-    profile: loadProfile  // ← ADD THIS
-};
-    loaders[section]?.();
+
+    // Always reload data when switching sections
+    const loaders = {
+        dashboard: loadStats,
+        mentorships: loadMentorships,
+        videos: loadVideos,
+        upload: loadUploadOptions,
+        keys: loadKeys,
+        users: loadUsers,
+        profile: loadProfile
+    };
+
+    if (loaders[section]) loaders[section]();
 }
 
 // ===== STATS =====
@@ -66,9 +87,14 @@ async function loadStats() {
 
 // ===== MENTORSHIPS =====
 async function loadMentorships() {
-    const data = await api('/admin/mentorships');
-    if (!data.success) return;
     const tbody = document.getElementById('mentorshipsBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;"><div class="spinner" style="margin:0 auto;"></div></td></tr>';
+
+    const data = await api('/admin/mentorships');
+    if (!data || !data.success) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--danger)">Error loading. Try again.</td></tr>';
+        return;
+    }
     if (!data.mentorships.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">No programs yet.</td></tr>'; return; }
     tbody.innerHTML = data.mentorships.map(m => `<tr>
         <td><span style="margin-right:6px;">${m.icon}</span><strong>${esc(m.name)}</strong><br><small style="color:var(--text-muted)">${esc(m.description||'')}</small></td>
@@ -98,9 +124,14 @@ async function deleteMentorship(id) {
 
 // ===== VIDEOS =====
 async function loadVideos() {
-    const data = await api('/admin/videos');
-    if (!data.success) return;
     const tbody = document.getElementById('videosBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;"><div class="spinner" style="margin:0 auto;"></div></td></tr>';
+
+    const data = await api('/admin/videos');
+    if (!data || !data.success) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--danger)">Error loading. Try again.</td></tr>';
+        return;
+    }
     if (!data.videos.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">No videos.</td></tr>'; return; }
     tbody.innerHTML = data.videos.map(v => `<tr>
         <td><strong>${esc(v.title)}</strong><br><small style="color:var(--text-muted)">${esc(v.description||'').slice(0,50)}</small></td>
