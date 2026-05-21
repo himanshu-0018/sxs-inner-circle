@@ -1,6 +1,5 @@
 // server/routes/videos.js
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const Video = require('../models/Video');
 const User = require('../models/User');
@@ -8,16 +7,52 @@ const Mentorship = require('../models/Mentorship');
 const { auth } = require('../middleware/auth');
 const router = express.Router();
 
-// Store temporary secure tokens (expire in 30 seconds)
-const secureTokens = new Map();
+// In-memory secure session store
+const videoSessions = new Map();
 
-// Cleanup expired tokens every 60 seconds
+// Cleanup expired sessions every 5 minutes
 setInterval(() => {
     const now = Date.now();
-    for (const [key, value] of secureTokens.entries()) {
-        if (now > value.expires) secureTokens.delete(key);
+    for (const [key, value] of videoSessions.entries()) {
+        if (now > value.expires) videoSessions.delete(key);
     }
-}, 60000);
+}, 5 * 60 * 1000);
+
+// Encrypt video URL
+function encryptUrl(url) {
+    const secret = process.env.JWT_SECRET || 'secret';
+    const key = crypto.scryptSync(secret, 'salt', 32);
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(url, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+}
+
+// Decrypt video URL
+function decryptUrl(encryptedData) {
+    try {
+        const secret = process.env.JWT_SECRET || 'secret';
+        const key = crypto.scryptSync(secret, 'salt', 32);
+        const [ivHex, encrypted] = encryptedData.split(':');
+        const iv = Buffer.from(ivHex, 'hex');
+        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Extract Google Drive File ID
+function getFileId(url) {
+    const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) return match[1];
+    const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (match2) return match2[1];
+    return null;
+}
 
 // Get user's mentorships
 router.get('/my-mentorships', auth, async (req, res) => {
@@ -29,7 +64,10 @@ router.get('/my-mentorships', auth, async (req, res) => {
 
         const mentorshipsWithCount = await Promise.all(
             mentorships.map(async (m) => {
-                const videoCount = await Video.countDocuments({ mentorship: m._id, isActive: true });
+                const videoCount = await Video.countDocuments({
+                    mentorship: m._id,
+                    isActive: true
+                });
                 return { ...m.toObject(), videoCount };
             })
         );
@@ -42,11 +80,15 @@ router.get('/my-mentorships', auth, async (req, res) => {
 // Get videos for a mentorship
 router.get('/mentorship/:mentorshipId', auth, async (req, res) => {
     try {
-        const userMentorshipIds = req.user.mentorships.map(m => m._id.toString());
-        if (!userMentorshipIds.includes(req.params.mentorshipId) && req.user.role !== 'admin') {
+        const userMentorshipIds = req.user.mentorships.map(m =>
+            m._id ? m._id.toString() : m.toString()
+        );
+
+        if (!userMentorshipIds.includes(req.params.mentorshipId) && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
             return res.status(403).json({ success: false, message: 'No access to this mentorship.' });
         }
 
+        // Never send videoUrl to client
         const videos = await Video.find({
             mentorship: req.params.mentorshipId,
             isActive: true
@@ -58,52 +100,59 @@ router.get('/mentorship/:mentorshipId', auth, async (req, res) => {
     }
 });
 
-// Get video details + generate secure one-time stream token
+// Get video watch details - Returns session token NOT the URL
 router.get('/watch/:id', auth, async (req, res) => {
     try {
         const video = await Video.findById(req.params.id).populate('mentorship');
 
         if (!video || !video.isActive) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Video not found.' 
-            });
+            return res.status(404).json({ success: false, message: 'Video not found.' });
         }
 
         // Check mentorship access
-        const userMentorshipIds = req.user.mentorships.map(m => 
+        const userMentorshipIds = req.user.mentorships.map(m =>
             m._id ? m._id.toString() : m.toString()
         );
-        
-        const videoMentorshipId = video.mentorship._id 
-            ? video.mentorship._id.toString() 
+
+        const videoMentorshipId = video.mentorship._id
+            ? video.mentorship._id.toString()
             : video.mentorship.toString();
 
-        console.log('User mentorships:', userMentorshipIds);
-        console.log('Video mentorship:', videoMentorshipId);
-        console.log('Has access:', userMentorshipIds.includes(videoMentorshipId));
-
-        if (!userMentorshipIds.includes(videoMentorshipId) && req.user.role !== 'admin') {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'You do not have access to this video.' 
-            });
+        if (!userMentorshipIds.includes(videoMentorshipId) &&
+            req.user.role !== 'admin' &&
+            req.user.role !== 'superadmin') {
+            return res.status(403).json({ success: false, message: 'No access to this video.' });
         }
 
         video.viewCount += 1;
         await video.save();
 
+        // Create secure session token (NOT the URL)
+        const sessionToken = crypto.randomBytes(32).toString('hex');
+        const encryptedUrl = encryptUrl(video.videoUrl);
+
+        // Store session with 2 hour expiry
+        videoSessions.set(sessionToken, {
+            videoId: video._id.toString(),
+            userId: req.user._id.toString(),
+            encryptedUrl: encryptedUrl,
+            expires: Date.now() + (2 * 60 * 60 * 1000),
+            userAgent: req.headers['user-agent']
+        });
+
+        // Return session token - NOT the video URL
         res.json({
             success: true,
             video: {
                 id: video._id,
                 title: video.title,
                 description: video.description,
-                videoUrl: video.videoUrl,
-                mentorship: video.mentorship ? video.mentorship.name : '',
+                mentorship: video.mentorship.name,
                 viewCount: video.viewCount,
                 createdAt: video.createdAt
+                // ✅ videoUrl is NOT sent to client
             },
+            sessionToken, // Only send this token
             watermark: {
                 name: req.user.name,
                 email: req.user.email,
@@ -114,117 +163,137 @@ router.get('/watch/:id', auth, async (req, res) => {
 
     } catch (error) {
         console.error('Watch error:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Error loading video: ' + error.message 
-        });
+        res.status(500).json({ success: false, message: 'Error loading video.' });
     }
 });
 
-// Refresh stream token (called by player every 25 seconds)
-router.post('/refresh-token', auth, async (req, res) => {
+// Secure video frame endpoint - serves iframe page with hidden URL
+router.get('/secure-frame/:sessionToken', async (req, res) => {
     try {
-        const { videoId } = req.body;
-        const video = await Video.findById(videoId);
-        if (!video) return res.status(404).json({ success: false });
+        const session = videoSessions.get(req.params.sessionToken);
 
-        const streamToken = crypto.randomBytes(32).toString('hex');
-        secureTokens.set(streamToken, {
-            videoId: video._id.toString(),
-            userId: req.user._id.toString(),
-            videoUrl: video.videoUrl,
-            expires: Date.now() + 30000,
-            used: false
+        // Validate session
+        if (!session) {
+            return res.status(403).send(`
+                <html><body style="background:#000;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;">
+                    <div>
+                        <h2>⛔ Session Expired</h2>
+                        <p>Please refresh the page to continue watching.</p>
+                    </div>
+                </body></html>
+            `);
+        }
+
+        if (Date.now() > session.expires) {
+            videoSessions.delete(req.params.sessionToken);
+            return res.status(403).send(`
+                <html><body style="background:#000;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;">
+                    <div>
+                        <h2>⏰ Session Expired</h2>
+                        <p>Please refresh the page.</p>
+                    </div>
+                </body></html>
+            `);
+        }
+
+        // Verify user
+        const user = await User.findById(session.userId);
+        if (!user || user.isBlocked || !user.isActive) {
+            videoSessions.delete(req.params.sessionToken);
+            return res.status(403).send(`
+                <html><body style="background:#000;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;">
+                    <div>
+                        <h2>🚫 Access Denied</h2>
+                        <p>Your account has been blocked.</p>
+                    </div>
+                </body></html>
+            `);
+        }
+
+        // Decrypt URL on server side
+        const videoUrl = decryptUrl(session.encryptedUrl);
+        if (!videoUrl) {
+            return res.status(500).send('Error loading video.');
+        }
+
+        // Get Google Drive file ID and build embed URL
+        const fileId = getFileId(videoUrl);
+        const embedUrl = fileId
+            ? `https://drive.google.com/file/d/${fileId}/preview`
+            : videoUrl;
+
+        // Serve an HTML page with the iframe
+        // The actual Google Drive URL is injected SERVER-SIDE
+        // Client never sees it
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+
+        res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { width:100%; height:100%; background:#000; overflow:hidden; }
+        iframe {
+            width:100%;
+            height:100%;
+            border:none;
+            display:block;
+        }
+        /* Block right click */
+        body { -webkit-user-select:none; user-select:none; }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+    <iframe
+        src="${embedUrl}"
+        allow="autoplay; encrypted-media"
+        sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+        allowfullscreen="false">
+    </iframe>
+    <script>
+        // Disable right click
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        // Disable keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            if (e.ctrlKey || e.metaKey || e.key === 'F12') e.preventDefault();
         });
+        // Prevent parent access
+        Object.defineProperty(window, 'parent', { get: () => window });
+        Object.defineProperty(window, 'top', { get: () => window });
+    </script>
+</body>
+</html>
+        `);
 
-        res.json({ success: true, streamToken });
+    } catch (error) {
+        console.error('Secure frame error:', error);
+        res.status(500).send('Error loading video.');
+    }
+});
+
+// Refresh session (called every 30 minutes to keep alive)
+router.post('/refresh-session', auth, async (req, res) => {
+    try {
+        const { sessionToken, videoId } = req.body;
+        const session = videoSessions.get(sessionToken);
+
+        if (!session || session.userId !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Invalid session.' });
+        }
+
+        // Extend session by 2 hours
+        session.expires = Date.now() + (2 * 60 * 60 * 1000);
+        videoSessions.set(sessionToken, session);
+
+        res.json({ success: true, message: 'Session refreshed.' });
     } catch (error) {
         res.status(500).json({ success: false });
-    }
-});
-
-// Secure video proxy stream - fetches video server-side so URL is never exposed
-router.get('/secure-stream/:streamToken', async (req, res) => {
-    try {
-        const tokenData = secureTokens.get(req.params.streamToken);
-
-        if (!tokenData) {
-            return res.status(403).json({ success: false, message: 'Invalid or expired stream token.' });
-        }
-
-        if (Date.now() > tokenData.expires) {
-            secureTokens.delete(req.params.streamToken);
-            return res.status(403).json({ success: false, message: 'Stream token expired.' });
-        }
-
-        // Verify the user still exists and is not blocked
-        const user = await User.findById(tokenData.userId);
-        if (!user || user.isBlocked || !user.isActive) {
-            secureTokens.delete(req.params.streamToken);
-            return res.status(403).json({ success: false, message: 'Access denied.' });
-        }
-
-        const videoUrl = tokenData.videoUrl;
-
-        // Check referer - must come from our own site
-        const referer = req.headers.referer || '';
-        const host = req.headers.host || '';
-        if (referer && !referer.includes(host)) {
-            return res.status(403).json({ success: false, message: 'Access denied.' });
-        }
-
-        // Proxy the video stream from the actual URL
-        const https = videoUrl.startsWith('https') ? require('https') : require('http');
-
-        const range = req.headers.range;
-        const proxyHeaders = {
-            'User-Agent': 'SxS-Inner-Circle-Server/2.0'
-        };
-        if (range) proxyHeaders['Range'] = range;
-
-        const proxyReq = https.get(videoUrl, { headers: proxyHeaders }, (proxyRes) => {
-            // Security headers - prevent download
-            const responseHeaders = {
-                'Content-Type': proxyRes.headers['content-type'] || 'video/mp4',
-                'Accept-Ranges': 'bytes',
-                'Content-Disposition': 'inline', // Force inline, never attachment
-                'X-Content-Type-Options': 'nosniff',
-                'Cache-Control': 'no-store, no-cache, must-revalidate, private, max-age=0',
-                'Pragma': 'no-cache',
-                'Expires': '0',
-                'X-Frame-Options': 'DENY',
-                'X-Robots-Tag': 'noindex, nofollow',
-                'Cross-Origin-Resource-Policy': 'same-origin',
-                'Cross-Origin-Opener-Policy': 'same-origin',
-            };
-
-            if (proxyRes.headers['content-length']) {
-                responseHeaders['Content-Length'] = proxyRes.headers['content-length'];
-            }
-            if (proxyRes.headers['content-range']) {
-                responseHeaders['Content-Range'] = proxyRes.headers['content-range'];
-            }
-
-            res.writeHead(proxyRes.statusCode, responseHeaders);
-            proxyRes.pipe(res);
-        });
-
-        proxyReq.on('error', (err) => {
-            console.error('Proxy stream error:', err);
-            if (!res.headersSent) {
-                res.status(500).json({ success: false, message: 'Stream error.' });
-            }
-        });
-
-        req.on('close', () => {
-            proxyReq.destroy();
-        });
-
-    } catch (error) {
-        console.error('Secure stream error:', error);
-        if (!res.headersSent) {
-            res.status(500).json({ success: false, message: 'Stream error.' });
-        }
     }
 });
 
