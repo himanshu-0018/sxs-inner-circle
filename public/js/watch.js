@@ -11,6 +11,8 @@
     if (!videoId) { window.location.href = '/dashboard.html'; return; }
 
     const wrapper = document.getElementById('playerWrapper');
+    let currentSessionToken = null;
+    let sessionRefreshInterval = null;
 
     // =============================================
     // LOAD VIDEO
@@ -39,13 +41,8 @@
                 return;
             }
 
-            const video = data.video || {};
-            const watermark = data.watermark || {
-                name: user.name || 'User',
-                email: user.email || '',
-                phone: '',
-                id: 'XXXXXX'
-            };
+            const { video, watermark, sessionToken } = data;
+            currentSessionToken = sessionToken;
 
             // Set video info
             document.getElementById('videoTitle').textContent = video.title || 'Video';
@@ -56,18 +53,12 @@
             document.getElementById('wmPreview').textContent = `${watermark.name} • ${watermark.email}`;
             document.title = `${video.title || 'Watch'} - SxS Inner Circle`;
 
-            // Convert Google Drive URL to embed URL
-            const embedUrl = getEmbedUrl(video.videoUrl || '');
-
-            if (!embedUrl) {
-                alert('Video URL not found. Contact admin.');
-                window.location.href = '/dashboard.html';
-                return;
-            }
-
-            // Load iframe
+            // Load secure frame - URL is NEVER exposed to client
             const frame = document.getElementById('videoFrame');
-            frame.src = embedUrl;
+
+            // This URL serves an HTML page with the video
+            // The actual Google Drive URL is injected SERVER-SIDE only
+            frame.src = `${API}/videos/secure-frame/${sessionToken}`;
             frame.style.display = 'block';
 
             frame.addEventListener('load', () => {
@@ -83,8 +74,11 @@
             // Build all watermark layers
             buildWatermarks(watermark);
 
-            // Setup fullscreen button
+            // Setup fullscreen
             setupFullscreen();
+
+            // Refresh session every 30 minutes
+            sessionRefreshInterval = setInterval(refreshSession, 30 * 60 * 1000);
 
         } catch (err) {
             console.error('loadVideo error:', err);
@@ -93,114 +87,77 @@
         }
     }
 
-    // =============================================
-    // GOOGLE DRIVE URL CONVERTER
-    // =============================================
-    function getEmbedUrl(url) {
-        if (!url) return '';
-        if (url.includes('/preview')) return url;
-
-        let fileId = null;
-        const match1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-        if (match1) fileId = match1[1];
-
-        const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-        if (match2 && !fileId) fileId = match2[1];
-
-        if (fileId) {
-            return `https://drive.google.com/file/d/${fileId}/preview`;
+    // Refresh session to keep it alive
+    async function refreshSession() {
+        try {
+            await fetch(`${API}/videos/refresh-session`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sessionToken: currentSessionToken,
+                    videoId
+                })
+            });
+        } catch (e) {
+            // Silent fail
         }
-
-        return url;
     }
 
     // =============================================
-    // FULLSCREEN - Makes WRAPPER fullscreen so watermarks stay
+    // FULLSCREEN - Wrapper goes fullscreen (watermarks stay)
     // =============================================
     function setupFullscreen() {
         const fsBtn = document.getElementById('fullscreenBtn');
-        if (fsBtn) {
-            fsBtn.addEventListener('click', toggleFullscreen);
-        }
+        if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
 
-        // Double click on wrapper also toggles fullscreen
-        wrapper.addEventListener('dblclick', (e) => {
-            if (e.target.id !== 'videoFrame') {
-                toggleFullscreen();
-            }
-        });
-
-        // Listen for fullscreen change to update button
         document.addEventListener('fullscreenchange', updateFullscreenUI);
         document.addEventListener('webkitfullscreenchange', updateFullscreenUI);
     }
 
     function toggleFullscreen() {
         if (document.fullscreenElement || document.webkitFullscreenElement) {
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-                document.webkitExitFullscreen();
-            }
+            document.exitFullscreen?.() || document.webkitExitFullscreen?.();
         } else {
-            if (wrapper.requestFullscreen) {
-                wrapper.requestFullscreen();
-            } else if (wrapper.webkitRequestFullscreen) {
-                wrapper.webkitRequestFullscreen();
-            } else if (wrapper.msRequestFullscreen) {
-                wrapper.msRequestFullscreen();
-            }
+            wrapper.requestFullscreen?.() ||
+                wrapper.webkitRequestFullscreen?.() ||
+                wrapper.msRequestFullscreen?.();
         }
     }
 
     function updateFullscreenUI() {
         const isFS = document.fullscreenElement || document.webkitFullscreenElement;
         const fsBtn = document.getElementById('fullscreenBtn');
-        if (fsBtn) {
-            fsBtn.textContent = isFS ? '✕' : '⛶';
-        }
-
-        // Resize canvas watermark on fullscreen change
-        setTimeout(() => {
-            const oldCanvas = wrapper.querySelector('canvas');
-            if (oldCanvas) {
-                oldCanvas.remove();
-                const wm = {
-                    name: user.name || '',
-                    email: user.email || '',
-                    id: (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).id || '' : '').slice(-6).toUpperCase()
-                };
-                createCanvasWatermark(`${wm.name} | ${wm.email}`, `${wm.email}|${wm.id}`);
-            }
-        }, 300);
+        if (fsBtn) fsBtn.textContent = isFS ? '✕' : '⛶';
     }
 
     // =============================================
-    // WATERMARK SYSTEM - 6 CLEAR LAYERS
+    // WATERMARK SYSTEM - 6 LAYERS
     // =============================================
     function buildWatermarks(wm) {
         const wmFull = `${wm.name}  •  ${wm.email}  •  ID:${wm.id}`;
         const wmShort = `${wm.name}  |  ${wm.email}`;
         const wmMini = `${wm.name}  #${wm.id}`;
 
-        // ── LAYER 1: 6 Moving watermarks (CLEAR & VISIBLE) ──
+        // LAYER 1: 6 Moving watermarks
         const layer1 = document.getElementById('wmLayer1');
-        const moveClasses = [
+        [
             { cls: 'wm-move-1', text: wmFull },
             { cls: 'wm-move-2', text: wmShort },
             { cls: 'wm-move-3', text: wmFull },
             { cls: 'wm-move-4', text: wmShort },
             { cls: 'wm-move-5', text: wmFull },
             { cls: 'wm-move-6', text: wmShort }
-        ];
-        moveClasses.forEach(item => {
+        ].forEach(item => {
             const el = document.createElement('div');
             el.className = `wm-text ${item.cls}`;
             el.textContent = item.text;
             layer1.appendChild(el);
         });
 
-        // ── LAYER 2: Static rotated grid ──
+        // LAYER 2: Static rotated grid
         const grid = document.getElementById('wmGrid');
         for (let i = 0; i < 80; i++) {
             const item = document.createElement('div');
@@ -209,19 +166,20 @@
             grid.appendChild(item);
         }
 
-        // ── LAYER 3: Center pulsing ──
+        // LAYER 3: Center pulsing
         document.getElementById('wmCenter').textContent = wmFull;
 
-        // ── LAYER 4: Corner stamps with live timestamp ──
+        // LAYER 4: Corner stamps with live timestamp
         document.getElementById('wmTL').textContent = wmShort;
         document.getElementById('wmTR').textContent = `ID: ${wm.id}`;
         document.getElementById('wmBL').textContent = wm.email;
         document.getElementById('wmBR').textContent = new Date().toLocaleString();
         setInterval(() => {
-            document.getElementById('wmBR').textContent = new Date().toLocaleString();
+            const el = document.getElementById('wmBR');
+            if (el) el.textContent = new Date().toLocaleString();
         }, 1000);
 
-        // ── LAYER 5: Random repositioning watermarks ──
+        // LAYER 5: Random repositioning
         function spawnRandom() {
             const existing = wrapper.querySelectorAll('.wm-random');
             if (existing.length > 10) existing[0].remove();
@@ -242,26 +200,25 @@
         for (let i = 0; i < 5; i++) spawnRandom();
         setInterval(spawnRandom, 5000);
 
-        // ── LAYER 6: Canvas pixel watermark (works in fullscreen too) ──
+        // LAYER 6: Canvas pixel watermark
         createCanvasWatermark(wmShort, `${wm.email}|${wm.id}`);
     }
 
     function createCanvasWatermark(mainText, forensicText) {
+        const existing = wrapper.querySelector('.wm-canvas');
+        if (existing) existing.remove();
+
         const canvas = document.createElement('canvas');
         canvas.className = 'wm-canvas';
         canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:13;';
 
-        // Get wrapper size for proper canvas resolution
         const rect = wrapper.getBoundingClientRect();
         canvas.width = Math.max(rect.width * 2, 1920);
         canvas.height = Math.max(rect.height * 2, 1080);
 
         const ctx = canvas.getContext('2d');
-
-        // Main visible watermark grid - CLEAR TEXT
         ctx.font = 'bold 16px Courier New';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
-        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
 
         for (let y = 30; y < canvas.height; y += 80) {
             for (let x = 0; x < canvas.width; x += 400) {
@@ -273,40 +230,32 @@
             }
         }
 
-        // Forensic layer - very subtle but visible when contrast is adjusted
         ctx.font = 'bold 10px Courier New';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.015)';
+        ctx.fillStyle = 'rgba(255,255,255,0.015)';
         for (let y = 50; y < canvas.height; y += 55) {
             for (let x = 80; x < canvas.width; x += 300) {
                 ctx.save();
                 ctx.translate(x, y);
                 ctx.rotate(0.2);
-                ctx.fillText(`${forensicText}|${Date.now()}`, 0, 0);
+                ctx.fillText(forensicText, 0, 0);
                 ctx.restore();
             }
         }
 
         wrapper.appendChild(canvas);
 
-        // Recreate every 30 seconds with new timestamp
-        setTimeout(() => {
-            canvas.remove();
-            createCanvasWatermark(mainText, forensicText);
-        }, 30000);
+        setTimeout(() => createCanvasWatermark(mainText, forensicText), 30000);
     }
 
     // =============================================
     // ANTI PIRACY
     // =============================================
-
-    // Block right click
     document.addEventListener('contextmenu', e => {
         e.preventDefault();
         e.stopPropagation();
         return false;
     }, true);
 
-    // Block keyboard shortcuts
     document.addEventListener('keydown', e => {
         const blocked = [
             e.ctrlKey && e.key === 's',
@@ -322,18 +271,15 @@
             e.stopPropagation();
             return false;
         }
-
-        // F key for fullscreen
         if (e.key === 'f' || e.key === 'F') {
             e.preventDefault();
             toggleFullscreen();
         }
     }, true);
 
-    // Block drag
-    document.addEventListener('dragstart', e => { e.preventDefault(); }, true);
+    document.addEventListener('dragstart', e => e.preventDefault(), true);
 
-    // Detect DevTools
+    // DevTools detection
     let devOpen = false;
     setInterval(() => {
         const w = window.outerWidth - window.innerWidth > 160;
@@ -343,7 +289,7 @@
             for (let i = 0; i < 10; i++) {
                 const el = document.createElement('div');
                 el.textContent = `⚠️ RECORDING DETECTED - ${user.name} - ${user.email}`;
-                el.style.cssText = `position:absolute;top:${8 + i * 9}%;left:2%;color:rgba(255,0,0,0.4);font-size:clamp(14px,2.5vw,22px);z-index:100;pointer-events:none;white-space:nowrap;font-family:'Courier New',monospace;font-weight:bold;text-shadow:0 0 5px rgba(0,0,0,0.8);`;
+                el.style.cssText = `position:absolute;top:${8 + i * 9}%;left:2%;color:rgba(255,0,0,0.4);font-size:clamp(14px,2.5vw,22px);z-index:100;pointer-events:none;white-space:nowrap;font-family:'Courier New',monospace;font-weight:bold;`;
                 wrapper.appendChild(el);
             }
         } else if (!w && !h) {
@@ -352,14 +298,8 @@
     }, 1500);
 
     // Block screen recording
-    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+    if (navigator.mediaDevices?.getDisplayMedia) {
         navigator.mediaDevices.getDisplayMedia = function () {
-            for (let i = 0; i < 15; i++) {
-                const el = document.createElement('div');
-                el.textContent = `🚨 SCREEN RECORDING - ${user.name} - ${user.email}`;
-                el.style.cssText = `position:absolute;top:${4 + i * 6}%;left:1%;color:rgba(255,0,0,0.5);font-size:22px;z-index:200;pointer-events:none;font-family:monospace;font-weight:bold;`;
-                wrapper.appendChild(el);
-            }
             return Promise.reject(new Error('Not allowed'));
         };
     }
@@ -372,12 +312,12 @@
                 <div class="blocked-screen" style="display:flex;">
                     <div class="icon">🚨</div>
                     <h1 style="color:var(--danger);">Tampering Detected</h1>
-                    <p>Watermark removal detected. Session terminated.</p>
+                    <p>Session terminated.</p>
                 </div>`;
         }
     }, 3000);
 
-    // MutationObserver - auto-restore removed watermarks
+    // MutationObserver
     const observer = new MutationObserver((mutations) => {
         mutations.forEach(mutation => {
             mutation.removedNodes.forEach(node => {
@@ -394,17 +334,21 @@
     });
     observer.observe(wrapper, { childList: true, subtree: false });
 
-    // Block iframe embedding of this page
+    // Block iframe embedding
     if (window.top !== window.self) {
         document.body.innerHTML = '<h1 style="color:red;text-align:center;padding:50px;">Embedding not allowed</h1>';
     }
+
+    // Cleanup on leave
+    window.addEventListener('beforeunload', () => {
+        if (sessionRefreshInterval) clearInterval(sessionRefreshInterval);
+    });
 
     window.logout = function () {
         localStorage.clear();
         window.location.href = '/login.html';
     };
 
-    // START
     loadVideo();
 
 })();
