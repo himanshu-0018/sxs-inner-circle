@@ -13,27 +13,43 @@ const getClientIP = (req) => {
         req.ip || 'unknown';
 };
 
+// Register student
 router.post('/register', async (req, res) => {
     try {
         const { name, email, phone, password, accessKey } = req.body;
         if (!name || !email || !password || !accessKey) {
-            return res.status(400).json({ success: false, message: 'All fields are required including Access Key.' });
+            return res.status(400).json({
+                success: false,
+                message: 'All fields are required including Access Key.'
+            });
         }
 
         const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
-            return res.status(400).json({ success: false, message: 'Email already registered.' });
+            return res.status(400).json({
+                success: false,
+                message: 'Email already registered.'
+            });
         }
 
         const keyRecord = await AccessKey.findOne({ key: accessKey.trim() }).populate('mentorships');
         if (!keyRecord) {
-            return res.status(400).json({ success: false, message: 'Invalid access key.' });
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid access key.'
+            });
         }
         if (keyRecord.isUsed) {
-            return res.status(400).json({ success: false, message: 'Access key already used.' });
+            return res.status(400).json({
+                success: false,
+                message: 'Access key already used.'
+            });
         }
         if (new Date() > keyRecord.expiresAt) {
-            return res.status(400).json({ success: false, message: 'Access key expired.' });
+            return res.status(400).json({
+                success: false,
+                message: 'Access key expired.'
+            });
         }
 
         const user = new User({
@@ -74,19 +90,27 @@ router.post('/register', async (req, res) => {
     }
 });
 
+// Login
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         if (!email || !password) {
-            return res.status(400).json({ success: false, message: 'Email and password required.' });
+            return res.status(400).json({
+                success: false,
+                message: 'Email and password required.'
+            });
         }
 
         const user = await User.findOne({ email: email.toLowerCase() }).populate('mentorships');
         if (!user) {
-            return res.status(400).json({ success: false, message: 'Invalid credentials.' });
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid credentials.'
+            });
         }
 
-        if (user.isBlocked) {
+        // Check if blocked (only for students)
+        if (user.isBlocked && user.role === 'student') {
             return res.status(403).json({
                 success: false,
                 message: `Account BLOCKED: ${user.blockReason}`,
@@ -104,14 +128,18 @@ router.post('/login', async (req, res) => {
 
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
-            return res.status(400).json({ success: false, message: 'Invalid credentials.' });
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid credentials.'
+            });
         }
 
         const ip = getClientIP(req);
         user.trackIP(ip, req.headers['user-agent']);
         await user.save();
 
-        if (user.isBlocked) {
+        // Recheck block after IP tracking
+        if (user.isBlocked && user.role === 'student') {
             return res.status(403).json({
                 success: false,
                 message: `Account BLOCKED: ${user.blockReason}`,
@@ -139,20 +167,25 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// Get current user profile
 router.get('/me', auth, async (req, res) => {
-    const user = await User.findById(req.userId).populate('mentorships');
-    res.json({
-        success: true,
-        user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            role: user.role,
-            mentorships: user.mentorships,
-            createdAt: user.createdAt
-        }
-    });
+    try {
+        const user = await User.findById(req.userId).populate('mentorships');
+        res.json({
+            success: true,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                role: user.role,
+                mentorships: user.mentorships,
+                createdAt: user.createdAt
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error fetching profile.' });
+    }
 });
 
 // Change own password
@@ -189,6 +222,8 @@ router.post('/change-password', auth, async (req, res) => {
         user.password = newPassword;
         await user.save();
 
+        console.log(`🔑 Password changed: ${user.email}`);
+
         res.json({
             success: true,
             message: 'Password changed successfully!'
@@ -200,6 +235,46 @@ router.post('/change-password', auth, async (req, res) => {
             success: false,
             message: 'Server error.'
         });
+    }
+});
+
+// Report suspicious activity - auto ban student
+router.post('/report-violation', auth, async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const user = await User.findById(req.userId);
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        // Don't ban admins - only log
+        if (user.role === 'admin' || user.role === 'superadmin') {
+            console.log(`⚠️ Admin violation (NOT banned): ${user.email} | Reason: ${reason}`);
+            return res.json({
+                success: true,
+                banned: false,
+                message: 'Logged for admin.'
+            });
+        }
+
+        // Ban the student immediately
+        user.isBlocked = true;
+        user.isActive = false;
+        user.blockReason = `Auto-banned: ${reason} | Time: ${new Date().toISOString()} | IP: ${getClientIP(req)}`;
+        await user.save();
+
+        console.log(`🚨 USER BANNED: ${user.name} (${user.email}) | Reason: ${reason} | IP: ${getClientIP(req)}`);
+
+        res.json({
+            success: true,
+            banned: true,
+            message: 'Account has been suspended due to policy violation.'
+        });
+
+    } catch (error) {
+        console.error('Report violation error:', error);
+        res.status(500).json({ success: false, message: 'Server error.' });
     }
 });
 
