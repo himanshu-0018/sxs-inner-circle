@@ -147,18 +147,31 @@ async function loadVideos() {
 
 async function loadMentorshipOptions() {
     const data = await api('/admin/mentorships');
-    if (!data.success) return;
+    if (!data || !data.success) return;
 
-    const select = document.getElementById('vMentorship');
-    if (select) {
-        select.innerHTML = '<option value="">Select program</option>' +
-            data.mentorships.map(m => `<option value="${m._id}">${m.icon} ${esc(m.name)}</option>`).join('');
-    }
+    // Video upload selects
+    const selects = ['fuMentorship', 'vuMentorship'];
+    selects.forEach(id => {
+        const select = document.getElementById(id);
+        if (select) {
+            select.innerHTML = '<option value="">Select program</option>' +
+                data.mentorships.map(m => `<option value="${m._id}">${m.icon || '🎓'} ${esc(m.name)}</option>`).join('');
+        }
+    });
 
-    const checkboxes = document.getElementById('kMentorships');
-    if (checkboxes) {
-        checkboxes.innerHTML = data.mentorships.map(m => `
-            <label class="checkbox-item"><input type="checkbox" value="${m._id}">${m.icon} ${esc(m.name)}</label>
+    // Key generation checkboxes
+    const checkboxContainer = document.getElementById('kMentorships');
+    if (checkboxContainer) {
+        if (data.mentorships.length === 0) {
+            checkboxContainer.innerHTML = '<p style="color:var(--text-muted);font-size:0.82rem;">No programs created yet. Create one first!</p>';
+            return;
+        }
+
+        checkboxContainer.innerHTML = data.mentorships.map(m => `
+            <label class="checkbox-item" style="cursor:pointer;">
+                <input type="checkbox" value="${m._id}" id="km_${m._id}" style="cursor:pointer;">
+                <span>${m.icon || '🎓'} ${esc(m.name)}</span>
+            </label>
         `).join('');
     }
 }
@@ -208,19 +221,42 @@ async function loadKeys() {
 
 document.getElementById('keyForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const mentorships = [...document.querySelectorAll('#kMentorships input:checked')].map(cb => cb.value);
-    const data = await api('/admin/keys/generate', 'POST', {
-        count: parseInt(document.getElementById('kCount').value),
-        expiresInDays: parseInt(document.getElementById('kExpiry').value),
-        note: document.getElementById('kNote').value,
-        mentorships
+
+    // Get all checked mentorship checkboxes
+    const checkboxes = document.querySelectorAll('#kMentorships input[type="checkbox"]');
+    const mentorships = [];
+
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            mentorships.push(cb.value);
+        }
     });
+
+    // Validate at least one mentorship selected
+    if (mentorships.length === 0) {
+        showAlert('error', 'Please select at least one mentorship program!');
+        return;
+    }
+
+    console.log('Selected mentorships:', mentorships); // Debug
+
+    const data = await api('/admin/keys/generate', 'POST', {
+        count: parseInt(document.getElementById('kCount').value) || 1,
+        expiresInDays: parseInt(document.getElementById('kExpiry').value) || 30,
+        note: document.getElementById('kNote').value || '',
+        mentorships: mentorships
+    });
+
     if (data.success) {
         document.getElementById('generatedKeys').innerHTML =
-            `<h4 style="color:var(--success);margin-bottom:8px;">✅ ${data.keys.length} Key(s) Generated!</h4>` +
+            `<h4 style="color:var(--success);margin-bottom:8px;">✅ ${data.keys.length} Key(s) Generated!</h4>
+             <p style="color:var(--text-muted);font-size:0.78rem;margin-bottom:10px;">Assigned to ${mentorships.length} program(s)</p>` +
             data.keys.map(k => `<div class="key-display"><span>${k.key}</span><button class="copy-btn" onclick="copyKey('${k.key}')">Copy</button></div>`).join('');
-        loadKeys(); loadStats();
-    } else showAlert('error', data.message);
+        loadKeys();
+        loadStats();
+    } else {
+        showAlert('error', data.message);
+    }
 });
 
 function copyKey(key) { navigator.clipboard.writeText(key); showAlert('success', `Copied: ${key}`); }
