@@ -7,16 +7,25 @@ const https = require('https');
 const http = require('http');
 const os = require('os');
 
+// Tell fluent-ffmpeg where FFmpeg is on Railway
+if (process.env.FFMPEG_PATH) {
+    ffmpeg.setFfmpegPath(process.env.FFMPEG_PATH);
+}
+
 // Check if FFmpeg is available
 let ffmpegAvailable = false;
 try {
     const { execSync } = require('child_process');
-    execSync('ffmpeg -version', { stdio: 'ignore' });
+    const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
+    execSync(`${ffmpegPath} -version`, { stdio: 'ignore' });
     ffmpegAvailable = true;
-    console.log('✅ FFmpeg is available');
+    console.log('✅ FFmpeg is available at:', ffmpegPath);
 } catch (e) {
-    console.log('⚠️ FFmpeg not available - using direct proxy');
+    console.log('⚠️ FFmpeg not found - using direct proxy mode');
+    ffmpegAvailable = false;
 }
+
+// Rest of the file stays the same...
 
 // Temp directory for HLS chunks
 const TEMP_DIR = path.join(os.tmpdir(), 'sxs-hls');
