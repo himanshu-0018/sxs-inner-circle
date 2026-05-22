@@ -179,19 +179,33 @@ async function loadUploadSection() {
 // STATS
 // =============================================
 async function loadStats() {
-    const data = await api('/admin/stats');
-    if (!data || !data.success) return;
-    const s = data.stats;
-    document.getElementById('statsGrid').innerHTML = `
-        <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-number">${s.totalUsers}</div><div class="stat-label">Total Students</div></div>
-        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-number">${s.activeUsers}</div><div class="stat-label">Active</div></div>
-        <div class="stat-card"><div class="stat-icon">🚫</div><div class="stat-number">${s.blockedUsers}</div><div class="stat-label">Blocked</div></div>
-        <div class="stat-card"><div class="stat-icon">🎓</div><div class="stat-number">${s.totalMentorships}</div><div class="stat-label">Programs</div></div>
-        <div class="stat-card"><div class="stat-icon">🎬</div><div class="stat-number">${s.totalVideos}</div><div class="stat-label">Videos</div></div>
-        <div class="stat-card"><div class="stat-icon">👁</div><div class="stat-number">${s.totalViews}</div><div class="stat-label">Total Views</div></div>
-        <div class="stat-card"><div class="stat-icon">🔑</div><div class="stat-number">${s.unusedKeys}</div><div class="stat-label">Available Keys</div></div>
-        <div class="stat-card"><div class="stat-icon">✔️</div><div class="stat-number">${s.usedKeys}</div><div class="stat-label">Used Keys</div></div>
-    `;
+    try {
+        const data = await api('/admin/stats');
+        if (!data || !data.success) {
+            document.getElementById('statsGrid').innerHTML = `
+                <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--danger);">
+                    Error loading stats. Check server.
+                </div>`;
+            return;
+        }
+        const s = data.stats;
+        document.getElementById('statsGrid').innerHTML = `
+            <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-number">${s.totalUsers || 0}</div><div class="stat-label">Total Students</div></div>
+            <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-number">${s.activeUsers || 0}</div><div class="stat-label">Active</div></div>
+            <div class="stat-card"><div class="stat-icon">🚫</div><div class="stat-number">${s.blockedUsers || 0}</div><div class="stat-label">Blocked</div></div>
+            <div class="stat-card"><div class="stat-icon">🎓</div><div class="stat-number">${s.totalMentorships || 0}</div><div class="stat-label">Programs</div></div>
+            <div class="stat-card"><div class="stat-icon">🎬</div><div class="stat-number">${s.totalVideos || 0}</div><div class="stat-label">Videos</div></div>
+            <div class="stat-card"><div class="stat-icon">👁</div><div class="stat-number">${s.totalViews || 0}</div><div class="stat-label">Total Views</div></div>
+            <div class="stat-card"><div class="stat-icon">🔑</div><div class="stat-number">${s.unusedKeys || 0}</div><div class="stat-label">Available Keys</div></div>
+            <div class="stat-card"><div class="stat-icon">✔️</div><div class="stat-number">${s.usedKeys || 0}</div><div class="stat-label">Used Keys</div></div>
+        `;
+    } catch (err) {
+        console.error('Stats error:', err);
+        document.getElementById('statsGrid').innerHTML = `
+            <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--danger);">
+                Error loading dashboard.
+            </div>`;
+    }
 }
 
 // =============================================
