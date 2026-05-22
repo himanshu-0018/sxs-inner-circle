@@ -367,8 +367,6 @@ const watermarkEnabled = process.env.WATERMARK_ENABLED !== 'false';
             background:#000;
             overflow:hidden;
             -webkit-user-select:none;
-            -moz-user-select:none;
-            -ms-user-select:none;
             user-select:none;
             -webkit-touch-callout:none;
         }
@@ -381,167 +379,29 @@ const watermarkEnabled = process.env.WATERMARK_ENABLED !== 'false';
             top:0; left:0;
             z-index:1;
         }
-        ${watermarkEnabled ? `
-        .iwm-layer {
+        .single-watermark {
             position:absolute;
-            top:0; left:0;
-            width:100%; height:100%;
-            pointer-events:none;
-            z-index:10;
-            overflow:hidden;
-        }
-        .iwm-text {
-            position:absolute;
-            white-space:nowrap;
-            pointer-events:none;
-            user-select:none;
-            font-family:'Courier New',monospace;
-            font-weight:800;
-            letter-spacing:1px;
-            text-shadow: 0 0 3px rgba(0,0,0,0.8), 0 0 6px rgba(0,0,0,0.5);
-        }
-        .iwm-1 {
-            color:rgba(255,255,255,0.18);
-            font-size:clamp(12px,2vw,20px);
-            animation: iwmSlide1 25s linear infinite;
-        }
-        .iwm-2 {
-            color:rgba(255,255,255,0.15);
-            font-size:clamp(11px,1.6vw,18px);
-            animation: iwmSlide2 32s linear infinite;
-        }
-        .iwm-3 {
             color:rgba(255,255,255,0.20);
-            font-size:clamp(13px,2.2vw,22px);
-            animation: iwmSlide3 20s linear infinite;
-        }
-        .iwm-4 {
-            color:rgba(255,255,255,0.14);
-            font-size:clamp(10px,1.4vw,16px);
-            animation: iwmSlide4 28s linear infinite;
-        }
-        .iwm-5 {
-            color:rgba(255,255,255,0.16);
-            font-size:clamp(11px,1.8vw,19px);
-            animation: iwmSlide5 35s linear infinite;
-        }
-        .iwm-6 {
-            color:rgba(255,255,255,0.13);
-            font-size:clamp(10px,1.5vw,17px);
-            animation: iwmSlide6 22s linear infinite;
-        }
-        @keyframes iwmSlide1 {
-            0% { top:10%; left:-50%; transform:rotate(-12deg); }
-            50% { top:60%; left:110%; transform:rotate(-12deg); }
-            100% { top:10%; left:-50%; transform:rotate(-12deg); }
-        }
-        @keyframes iwmSlide2 {
-            0% { top:70%; left:120%; transform:rotate(8deg); }
-            50% { top:20%; left:-60%; transform:rotate(8deg); }
-            100% { top:70%; left:120%; transform:rotate(8deg); }
-        }
-        @keyframes iwmSlide3 {
-            0% { top:40%; left:-40%; transform:rotate(-5deg); }
-            33% { top:70%; left:40%; transform:rotate(3deg); }
-            66% { top:25%; left:80%; transform:rotate(-8deg); }
-            100% { top:40%; left:-40%; transform:rotate(-5deg); }
-        }
-        @keyframes iwmSlide4 {
-            0% { top:80%; left:-30%; transform:rotate(15deg); }
-            50% { top:10%; left:100%; transform:rotate(15deg); }
-            100% { top:80%; left:-30%; transform:rotate(15deg); }
-        }
-        @keyframes iwmSlide5 {
-            0% { top:50%; left:50%; transform:translate(-50%,-50%) rotate(0deg); }
-            25% { top:15%; left:80%; }
-            50% { top:75%; left:20%; transform:translate(-50%,-50%) rotate(10deg); }
-            75% { top:30%; left:65%; }
-            100% { top:50%; left:50%; transform:translate(-50%,-50%) rotate(0deg); }
-        }
-        @keyframes iwmSlide6 {
-            0% { top:45%; left:110%; transform:rotate(-20deg); }
-            50% { top:55%; left:-50%; transform:rotate(-20deg); }
-            100% { top:45%; left:110%; transform:rotate(-20deg); }
-        }
-        .iwm-center {
-            position:absolute;
-            top:50%; left:50%;
-            transform:translate(-50%,-50%);
-            color:rgba(255,255,255,0.12);
-            font-size:clamp(14px,2.5vw,28px);
-            font-family:'Courier New',monospace;
-            font-weight:800;
-            pointer-events:none;
-            user-select:none;
-            z-index:11;
-            white-space:nowrap;
-            text-shadow: 0 0 5px rgba(0,0,0,0.7);
-            animation: iwmPulse 8s ease-in-out infinite;
-        }
-        @keyframes iwmPulse {
-            0%,100% { opacity:0.08; transform:translate(-50%,-50%) scale(1); }
-            50% { opacity:0.16; transform:translate(-50%,-50%) scale(1.05); }
-        }
-        .iwm-corner {
-            position:absolute;
-            color:rgba(255,255,255,0.25);
-            font-size:clamp(8px,1vw,12px);
-            font-family:'Courier New',monospace;
-            font-weight:700;
-            pointer-events:none;
-            user-select:none;
-            z-index:12;
-            background:rgba(0,0,0,0.5);
-            padding:3px 8px;
-            border-radius:4px;
-            white-space:nowrap;
-            text-shadow: 0 0 3px rgba(0,0,0,0.9);
-        }
-        .iwm-tl { top:8px; left:8px; }
-        .iwm-tr { top:8px; right:8px; }
-        .iwm-bl { bottom:8px; left:8px; }
-        .iwm-br { bottom:8px; right:8px; }
-        .iwm-grid {
-            position:absolute;
-            top:-50%; left:-50%;
-            width:300%; height:300%;
-            display:flex;
-            flex-wrap:wrap;
-            gap:55px 70px;
-            transform:rotate(-25deg);
-            pointer-events:none;
-            z-index:9;
-        }
-        .iwm-grid-item {
-            color:rgba(255,255,255,0.035);
-            font-size:clamp(10px,1.2vw,13px);
-            font-family:'Courier New',monospace;
-            font-weight:700;
-            white-space:nowrap;
-            user-select:none;
-            text-shadow: 0 0 2px rgba(0,0,0,0.5);
-        }
-        .iwm-random {
-            position:absolute;
-            color:rgba(255,255,255,0.14);
-            font-size:clamp(10px,1.5vw,16px);
-            font-family:'Courier New',monospace;
+            font-size:clamp(14px, 2.2vw, 22px);
+            font-family:'Courier New', monospace;
             font-weight:800;
             white-space:nowrap;
             pointer-events:none;
             user-select:none;
-            z-index:13;
-            text-shadow: 0 0 4px rgba(0,0,0,0.7);
-            transition: all 3s ease;
+            z-index:10;
+            letter-spacing:1px;
+            text-shadow:
+                0 0 4px rgba(0,0,0,0.8),
+                0 0 8px rgba(0,0,0,0.5);
+            animation: singleMove 20s linear infinite;
         }
-        .iwm-canvas {
-            position:absolute;
-            top:0; left:0;
-            width:100%; height:100%;
-            pointer-events:none;
-            z-index:14;
+        @keyframes singleMove {
+            0% { top:15%; left:-50%; }
+            25% { top:45%; left:60%; }
+            50% { top:75%; left:10%; }
+            75% { top:30%; left:70%; }
+            100% { top:15%; left:-50%; }
         }
-        ` : ''}
         .gd-block-top {
             position:absolute;
             top:0; right:0;
@@ -549,7 +409,7 @@ const watermarkEnabled = process.env.WATERMARK_ENABLED !== 'false';
             z-index:20;
             background:transparent;
         }
-        .gd-block-bottom-right {
+        .gd-block-bottom {
             position:absolute;
             bottom:0; right:0;
             width:70px; height:50px;
@@ -559,120 +419,30 @@ const watermarkEnabled = process.env.WATERMARK_ENABLED !== 'false';
     </style>
 </head>
 <body oncontextmenu="return false" ondragstart="return false" onselectstart="return false">
-    <iframe class="video-frame" id="videoFrame"
+    <iframe class="video-frame"
         src="${embedUrl}"
         allow="autoplay; encrypted-media"
         sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
-        allowfullscreen="false"
-        loading="lazy">
+        allowfullscreen="false">
     </iframe>
 
-    ${watermarkEnabled ? `
-    <!-- WATERMARK LAYERS -->
-    <div class="iwm-layer">
-        <div class="iwm-text iwm-1">${safeWmFull}</div>
-        <div class="iwm-text iwm-2">${safeWmShort}</div>
-        <div class="iwm-text iwm-3">${safeWmFull}</div>
-        <div class="iwm-text iwm-4">${safeWmShort}</div>
-        <div class="iwm-text iwm-5">${safeWmFull}</div>
-        <div class="iwm-text iwm-6">${safeWmShort}</div>
-    </div>
-    <div class="iwm-center">${safeWmFull}</div>
-    <div class="iwm-corner iwm-tl">${safeWmShort}</div>
-    <div class="iwm-corner iwm-tr">ID: ${safeWmId}</div>
-    <div class="iwm-corner iwm-bl">${safeWmEmail}</div>
-    <div class="iwm-corner iwm-br" id="iwmTime"></div>
-    <div class="iwm-grid" id="iwmGrid"></div>
-    <canvas class="iwm-canvas" id="iwmCanvas"></canvas>
-    ` : ''}
+    <!-- Single clean watermark -->
+    <div class="single-watermark">${safeWmShort}</div>
 
     <!-- Block Google Drive buttons -->
     <div class="gd-block-top"></div>
-    <div class="gd-block-bottom-right"></div>
+    <div class="gd-block-bottom"></div>
 
     <script>
-        ${watermarkEnabled ? `
-        // Timestamp
-        function updateTime() {
-            var el = document.getElementById('iwmTime');
-            if (el) el.textContent = new Date().toLocaleString();
-        }
-        updateTime();
-        setInterval(updateTime, 1000);
-
-        // Grid watermark
-        var grid = document.getElementById('iwmGrid');
-        if (grid) {
-            for (var i = 0; i < 80; i++) {
-                var item = document.createElement('div');
-                item.className = 'iwm-grid-item';
-                item.textContent = i % 2 === 0 ? '${safeWmFull.replace(/'/g, "\\'")}' : '${safeWmShort.replace(/'/g, "\\'")}';
-                grid.appendChild(item);
-            }
-        }
-
-        // Canvas watermark
-        function drawCanvas() {
-            var canvas = document.getElementById('iwmCanvas');
-            if (!canvas) return;
-            canvas.width = window.innerWidth * 2;
-            canvas.height = window.innerHeight * 2;
-            var ctx = canvas.getContext('2d');
-            ctx.font = 'bold 14px Courier New';
-            ctx.fillStyle = 'rgba(255,255,255,0.05)';
-            for (var y = 30; y < canvas.height; y += 75) {
-                for (var x = 0; x < canvas.width; x += 380) {
-                    ctx.save(); ctx.translate(x, y); ctx.rotate(-0.35);
-                    ctx.fillText('${safeWmShort.replace(/'/g, "\\'")}', 0, 0);
-                    ctx.restore();
-                }
-            }
-            ctx.font = 'bold 9px Courier New';
-            ctx.fillStyle = 'rgba(255,255,255,0.012)';
-            for (var y2 = 50; y2 < canvas.height; y2 += 50) {
-                for (var x2 = 60; x2 < canvas.width; x2 += 280) {
-                    ctx.save(); ctx.translate(x2, y2); ctx.rotate(0.2);
-                    ctx.fillText('${safeWmEmail.replace(/'/g, "\\'")}|${safeWmId}|' + Date.now(), 0, 0);
-                    ctx.restore();
-                }
-            }
-        }
-        drawCanvas();
-        setInterval(drawCanvas, 30000);
-        window.addEventListener('resize', drawCanvas);
-
-        // Random watermarks
-        function spawnRandom() {
-            var existing = document.querySelectorAll('.iwm-random');
-            if (existing.length > 8) existing[0].remove();
-            var el = document.createElement('div');
-            el.className = 'iwm-random';
-            el.textContent = Math.random() > 0.5 ? '${safeWmShort.replace(/'/g, "\\'")}' : '${safeWmFull.replace(/'/g, "\\'")}';
-            el.style.top = (Math.random() * 70 + 5) + '%';
-            el.style.left = (Math.random() * 55 + 10) + '%';
-            el.style.transform = 'rotate(' + (Math.random() * 30 - 15) + 'deg)';
-            document.body.appendChild(el);
-        }
-        for (var r = 0; r < 4; r++) spawnRandom();
-        setInterval(spawnRandom, 6000);
-        ` : '// Watermarks disabled'}
-
-        // Security
         document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
         document.addEventListener('keydown', function(e) {
             if (e.ctrlKey || e.metaKey || e.key === 'F12') { e.preventDefault(); return false; }
         });
         document.addEventListener('dragstart', function(e) { e.preventDefault(); });
-        document.addEventListener('selectstart', function(e) { e.preventDefault(); });
         document.addEventListener('copy', function(e) { e.preventDefault(); });
 
-        try {
-            Object.defineProperty(window, 'parent', { get: function() { return window; } });
-            Object.defineProperty(window, 'top', { get: function() { return window; } });
-        } catch(e) {}
-
         if (window === window.top) {
-            document.body.innerHTML = '<div style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;"><div><h1 style="font-size:4rem;">🚫</h1><h2>Direct Access Blocked</h2><p style="color:#888;margin-top:10px;">Videos can only be watched from the platform.</p></div></div>';
+            document.body.innerHTML = '<div style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;"><div><h1 style="font-size:4rem;">🚫</h1><h2>Direct Access Blocked</h2></div></div>';
         }
     </script>
 </body>
