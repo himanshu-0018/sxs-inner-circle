@@ -64,7 +64,7 @@ router.delete('/mentorships/:id', adminAuth, async (req, res) => {
 });
 
 // ========== VIDEO MANAGEMENT ==========
-router.post('/videos', adminAuth, async (req, res) => {
+('/videos', adminAuth, async (req, res) => {
     try {
         const { title, description, mentorship, videoUrl, order } = req.body;
         if (!title || !mentorship || !videoUrl) {
@@ -122,7 +122,26 @@ router.patch('/videos/:id/toggle', adminAuth, async (req, res) => {
 // ========== KEY MANAGEMENT ==========
 router.post('/keys/generate', adminAuth, async (req, res) => {
     try {
-        const { count = 1, expiresInDays = 30, note = '', mentorships = [] } = req.body;
+        const { count = 1, expiresInDays = 30, note = '' } = req.body;
+        let { mentorships = [] } = req.body;
+
+        // Validate mentorships
+        if (!Array.isArray(mentorships)) {
+            mentorships = [];
+        }
+
+        // Filter out empty strings
+        mentorships = mentorships.filter(m => m && m.trim() !== '');
+
+        if (mentorships.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please select at least one mentorship program for the key.'
+            });
+        }
+
+        console.log(`🔑 Generating ${count} key(s) for mentorships:`, mentorships);
+
         const keys = [];
 
         for (let i = 0; i < Math.min(count, 100); i++) {
@@ -135,8 +154,13 @@ router.post('/keys/generate', adminAuth, async (req, res) => {
             keys.push({ key, expiresAt });
         }
 
-        res.json({ success: true, message: `${keys.length} key(s) generated.`, keys });
+        res.json({ 
+            success: true, 
+            message: `${keys.length} key(s) generated for ${mentorships.length} program(s).`, 
+            keys 
+        });
     } catch (error) {
+        console.error('Key generation error:', error);
         res.status(500).json({ success: false, message: 'Error generating keys.' });
     }
 });
