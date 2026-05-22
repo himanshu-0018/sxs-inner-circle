@@ -6,31 +6,8 @@
     <title>Watch - SxS Inner Circle</title>
     <link rel="stylesheet" href="css/style.css">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <style>
-        /* Block Google Drive's fullscreen by covering bottom controls area */
-        .iframe-bottom-shield {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 60px;
-            height: 45px;
-            z-index: 15;
-            background: transparent;
-            cursor: pointer;
-        }
-        /* Also cover top-right area where GDrive shows options */
-        .iframe-top-shield {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 120px;
-            height: 50px;
-            z-index: 15;
-            background: transparent;
-        }
-    </style>
 </head>
-<body class="no-select" oncontextmenu="return false" ondragstart="return false" onselectstart="return false">
+<body class="no-select" oncontextmenu="return false">
     <div class="bg-animation"></div>
 
     <nav class="navbar">
@@ -44,44 +21,27 @@
     <div class="player-container">
         <button class="back-btn" onclick="history.back()">← Back to lectures</button>
 
-        <!-- VIDEO PLAYER WRAPPER -->
         <div class="video-player-wrapper" id="playerWrapper">
-
             <!-- Loading -->
             <div class="player-loading" id="playerLoading">
                 <div class="spinner"></div>
-                <p style="color:#fff;margin-top:12px;font-size:0.9rem;">Loading secure stream...</p>
+                <p style="color:#fff;margin-top:12px;font-size:0.9rem;">Loading...</p>
             </div>
 
-            <!-- Google Drive iframe - with sandbox to block its fullscreen -->
-            <iframe
-                id="videoFrame"
+            <!-- Video iframe -->
+            <iframe id="videoFrame"
                 style="display:none;width:100%;height:100%;border:none;position:absolute;top:0;left:0;"
                 allow="autoplay; encrypted-media"
                 sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
                 oncontextmenu="return false">
             </iframe>
 
-            <!-- WATERMARK LAYERS -->
-            <div class="watermark-layer" id="wmLayer1"></div>
-            <div class="watermark-layer" id="wmLayer2">
-                <div class="wm-grid-layer" id="wmGrid"></div>
-            </div>
-            <div class="wm-center" id="wmCenter"></div>
-            <div class="wm-corner tl" id="wmTL"></div>
-            <div class="wm-corner tr" id="wmTR"></div>
-            <div class="wm-corner bl" id="wmBL"></div>
-            <div class="wm-corner br" id="wmBR"></div>
-
-            <!-- Block Google Drive's own fullscreen button -->
-            <div class="iframe-bottom-shield" id="bottomShield" onclick="toggleFullscreen()"></div>
-            <div class="iframe-top-shield" id="topShield"></div>
-
-            <!-- Our fullscreen button -->
+            <!-- Fullscreen button -->
             <button class="fullscreen-btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
 
-            <!-- Shield overlay -->
-            <div class="iframe-shield" id="iframeShield"></div>
+            <!-- Block Google Drive buttons -->
+            <div style="position:absolute;top:0;right:0;width:140px;height:55px;z-index:20;background:transparent;"></div>
+            <div style="position:absolute;bottom:0;right:0;width:70px;height:50px;z-index:20;background:transparent;"></div>
         </div>
 
         <div class="video-info-panel">
@@ -95,8 +55,8 @@
         </div>
 
         <div class="warning-banner">
-            ⚠️ This video is protected with 6-layer dynamic watermarking tied to your identity
-            (<span id="wmPreview"></span>). Unauthorized sharing = permanent ban + legal action.
+            ⚠️ This video is watermarked with your identity
+            (<span id="wmPreview"></span>). Unauthorized sharing = permanent ban.
         </div>
     </div>
 
