@@ -1,4 +1,3 @@
-<!-- public/admin.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,132 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Admin - SxS Inner Circle</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>">
 </head>
 <body>
     <div class="bg-animation"></div>
+
+    <!-- Navbar -->
     <nav class="navbar">
         <a href="/admin.html" class="logo"><span>⚙️</span> Admin Panel</a>
         <div class="nav-links">
+            <span class="nav-user-name" style="color:var(--text-muted);font-size:0.82rem;" id="adminGreeting"></span>
             <button onclick="logout()" class="btn-nav-primary">Logout</button>
         </div>
     </nav>
+
     <!-- Mobile Navigation -->
     <div class="mobile-admin-nav" id="mobileNav">
         <button class="active" onclick="showSection('dashboard',this)">📊 Stats</button>
         <button onclick="showSection('mentorships',this)">🎓 Programs</button>
         <button onclick="showSection('videos',this)">🎬 Videos</button>
+        <button onclick="showSection('upload',this)">📤 Add Video</button>
         <button onclick="showSection('keys',this)">🔑 Keys</button>
         <button onclick="showSection('users',this)">👥 Users</button>
         <button onclick="showSection('profile',this)">👤 Profile</button>
     </div>
+
     <div class="admin-layout">
+        <!-- Sidebar -->
         <aside class="admin-sidebar">
             <button class="menu-item active" onclick="showSection('dashboard',this)"><span>📊</span> Dashboard</button>
             <button class="menu-item" onclick="showSection('mentorships',this)"><span>🎓</span> Mentorships</button>
             <button class="menu-item" onclick="showSection('videos',this)"><span>🎬</span> Videos</button>
+            <button class="menu-item" onclick="showSection('upload',this)"><span>📤</span> Add Video</button>
             <button class="menu-item" onclick="showSection('keys',this)"><span>🔑</span> Access Keys</button>
             <button class="menu-item" onclick="showSection('users',this)"><span>👥</span> Users</button>
             <button class="menu-item" onclick="showSection('profile',this)"><span>👤</span> My Profile</button>
         </aside>
+
+        <!-- Main Content -->
         <main class="admin-content">
+            <!-- Global Alerts -->
             <div class="alert alert-success" id="successAlert"></div>
             <div class="alert alert-error" id="errorAlert"></div>
-            <!-- Profile Section -->
-<section id="section-profile" style="display:none;">
-    <div style="max-width:500px;">
-        <h2 style="margin-bottom:20px;">👤 My Profile</h2>
 
-        <!-- Profile Info Card -->
-        <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:24px;margin-bottom:20px;">
-            <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
-                <div style="width:60px;height:60px;background:var(--gradient);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;">
-                    👑
-                </div>
-                <div>
-                    <h3 id="profileName" style="color:#fff;font-size:1.2rem;"></h3>
-                    <p id="profileEmail" style="color:var(--text-muted);font-size:0.85rem;"></p>
-                    <span id="profileRole" class="status-badge badge-active" style="margin-top:4px;display:inline-block;"></span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Change Password Card -->
-        <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:24px;">
-            <h3 style="margin-bottom:18px;font-size:1.1rem;">🔑 Change Password</h3>
-
-            <div class="alert alert-success" id="pwSuccessAlert"></div>
-            <div class="alert alert-error" id="pwErrorAlert"></div>
-
-            <form id="changePasswordForm">
-                <div class="form-group">
-                    <label>Current Password</label>
-                    <div style="position:relative;">
-                        <input type="password" id="currentPassword"
-                            placeholder="Enter current password" required
-                            style="padding-right:45px;">
-                        <button type="button" onclick="togglePw('currentPassword')"
-                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">
-                            👁
-                        </button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>New Password</label>
-                    <div style="position:relative;">
-                        <input type="password" id="newPassword"
-                            placeholder="Min 6 characters" required minlength="6"
-                            style="padding-right:45px;">
-                        <button type="button" onclick="togglePw('newPassword')"
-                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">
-                            👁
-                        </button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Confirm New Password</label>
-                    <div style="position:relative;">
-                        <input type="password" id="confirmNewPassword"
-                            placeholder="Re-enter new password" required minlength="6"
-                            style="padding-right:45px;">
-                        <button type="button" onclick="togglePw('confirmNewPassword')"
-                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">
-                            👁
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Password Strength Indicator -->
-                <div style="margin-bottom:16px;">
-                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-                        <span style="font-size:0.78rem;color:var(--text-muted);">Password Strength</span>
-                        <span id="strengthText" style="font-size:0.78rem;"></span>
-                    </div>
-                    <div style="width:100%;height:5px;background:var(--card-border);border-radius:10px;overflow:hidden;">
-                        <div id="strengthBar" style="height:100%;width:0%;border-radius:10px;transition:all 0.3s;"></div>
-                    </div>
-                </div>
-
-                <button type="submit" class="btn btn-primary" id="changePwBtn">
-                    🔑 Change Password
-                </button>
-            </form>
-
-            <div style="margin-top:16px;padding:12px;background:rgba(255,165,2,0.08);border:1px solid rgba(255,165,2,0.2);border-radius:8px;">
-                <p style="color:var(--warning);font-size:0.78rem;line-height:1.5;">
-                    ⚠️ After changing password, you will be logged out and need to login again with new password.
-                </p>
-            </div>
-        </div>
-    </div>
-</section>
-
-            <!-- Dashboard -->
+            <!-- ===== DASHBOARD SECTION ===== -->
             <section id="section-dashboard">
-                <h2 style="margin-bottom:18px;">📊 Dashboard</h2>
-                <div class="stats-grid" id="statsGrid"><div class="loading-spinner"><div class="spinner"></div></div></div>
+                <h2 style="margin-bottom:18px;">📊 Dashboard Overview</h2>
+                <div class="stats-grid" id="statsGrid">
+                    <div class="loading-spinner"><div class="spinner"></div></div>
+                </div>
             </section>
 
-            <!-- Mentorships -->
+            <!-- ===== MENTORSHIPS SECTION ===== -->
             <section id="section-mentorships" style="display:none;">
                 <div class="table-container">
                     <div class="table-header">
@@ -139,29 +64,110 @@
                         <button class="btn btn-primary btn-small" onclick="openModal('mentorshipModal')">+ Create Program</button>
                     </div>
                     <div class="table-scroll">
-                        <table><thead><tr>
-                            <th>Program</th><th>Videos</th><th>Students</th><th>Status</th><th>Actions</th>
-                        </tr></thead><tbody id="mentorshipsBody"></tbody></table>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Program</th>
+                                    <th>Videos</th>
+                                    <th>Students</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mentorshipsBody">
+                                <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Loading...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
 
-            <!-- Videos -->
+            <!-- ===== VIDEOS SECTION ===== -->
             <section id="section-videos" style="display:none;">
                 <div class="table-container">
                     <div class="table-header">
                         <h3>🎬 All Videos</h3>
-                        <button class="btn btn-primary btn-small" onclick="openModal('videoModal')">+ Add Video</button>
+                        <button class="btn btn-primary btn-small" onclick="showSection('upload')">+ Add New Video</button>
                     </div>
                     <div class="table-scroll">
-                        <table><thead><tr>
-                            <th>Title</th><th>Program</th><th>Views</th><th>Status</th><th>Actions</th>
-                        </tr></thead><tbody id="videosBody"></tbody></table>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Program</th>
+                                    <th>Views</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="videosBody">
+                                <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Loading...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
 
-            <!-- Keys -->
+            <!-- ===== ADD VIDEO SECTION ===== -->
+            <section id="section-upload" style="display:none;">
+                <div class="auth-card" style="max-width:600px;">
+                    <h2>📤 Add Video</h2>
+                    <p class="subtitle">Add a lecture video for your students</p>
+
+                    <!-- URL Upload Form -->
+                    <form id="urlUploadForm">
+                        <div class="form-group">
+                            <label>Video Title *</label>
+                            <input type="text" id="vuTitle" placeholder="e.g., Class 1 - Bitcoin Basics" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="vuDesc" rows="2" placeholder="Brief description of this lecture..." style="resize:vertical;"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Mentorship Program *</label>
+                            <select id="vuMentorship" required>
+                                <option value="">-- Select Program --</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Google Drive Video Link *</label>
+                            <input type="url" id="vuUrl" placeholder="https://drive.google.com/file/d/xxxxx/view" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Order (1 = shows first)</label>
+                            <input type="number" id="vuOrder" value="0" min="0">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" id="addVideoBtn">🔗 Add Video</button>
+                    </form>
+
+                    <!-- Help Box -->
+                    <div style="margin-top:18px;padding:16px;background:rgba(0,206,201,0.08);border:1px solid rgba(0,206,201,0.2);border-radius:10px;">
+                        <h4 style="color:var(--secondary);font-size:0.88rem;margin-bottom:10px;">📋 How to Get Google Drive Link</h4>
+                        <ol style="color:var(--text-muted);font-size:0.82rem;line-height:2;padding-left:18px;">
+                            <li>Upload your video to Google Drive</li>
+                            <li>Right click on video → Click <strong>Share</strong></li>
+                            <li>Change to <strong>"Anyone with the link can view"</strong></li>
+                            <li>Click <strong>Copy link</strong></li>
+                            <li>Paste it above — we convert it automatically! ✅</li>
+                        </ol>
+                    </div>
+
+                    <!-- Warning -->
+                    <div style="margin-top:12px;padding:12px;background:rgba(255,165,2,0.08);border:1px solid rgba(255,165,2,0.2);border-radius:8px;">
+                        <p style="color:var(--warning);font-size:0.78rem;text-align:center;">
+                            ⚠️ Make sure the Google Drive video sharing is set to "Anyone with the link"
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===== ACCESS KEYS SECTION ===== -->
             <section id="section-keys" style="display:none;">
                 <div class="table-container">
                     <div class="table-header">
@@ -169,73 +175,210 @@
                         <button class="btn btn-primary btn-small" onclick="openModal('keyModal')">+ Generate Keys</button>
                     </div>
                     <div class="table-scroll">
-                        <table><thead><tr>
-                            <th>Key</th><th>Programs</th><th>Status</th><th>Used By</th><th>Expires</th><th>Actions</th>
-                        </tr></thead><tbody id="keysBody"></tbody></table>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Programs</th>
+                                    <th>Status</th>
+                                    <th>Used By</th>
+                                    <th>Expires</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="keysBody">
+                                <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Loading...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
 
-            <!-- Users -->
+            <!-- ===== USERS SECTION ===== -->
             <section id="section-users" style="display:none;">
                 <div class="table-container">
                     <div class="table-header">
                         <h3>👥 Students</h3>
                     </div>
                     <div class="table-scroll">
-                        <table><thead><tr>
-                            <th>Name</th><th>Email</th><th>Programs</th><th>IPs</th><th>Status</th><th>Actions</th>
-                        </tr></thead><tbody id="usersBody"></tbody></table>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Programs</th>
+                                    <th>IPs</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersBody">
+                                <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Loading...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
+
+            <!-- ===== PROFILE SECTION ===== -->
+            <section id="section-profile" style="display:none;">
+                <div style="max-width:500px;">
+                    <h2 style="margin-bottom:20px;">👤 My Profile</h2>
+
+                    <!-- Profile Info Card -->
+                    <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:24px;margin-bottom:20px;">
+                        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+                            <div style="width:60px;height:60px;background:var(--gradient);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;">
+                                👑
+                            </div>
+                            <div>
+                                <h3 id="profileName" style="color:#fff;font-size:1.2rem;margin-bottom:2px;"></h3>
+                                <p id="profileEmail" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px;"></p>
+                                <span id="profileRole" class="status-badge badge-active" style="display:inline-block;"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Change Password Card -->
+                    <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:24px;">
+                        <h3 style="margin-bottom:18px;font-size:1.1rem;">🔑 Change Password</h3>
+
+                        <div class="alert alert-success" id="pwSuccessAlert"></div>
+                        <div class="alert alert-error" id="pwErrorAlert"></div>
+
+                        <form id="changePasswordForm">
+                            <div class="form-group">
+                                <label>Current Password</label>
+                                <div style="position:relative;">
+                                    <input type="password" id="currentPassword"
+                                        placeholder="Enter current password" required
+                                        style="padding-right:45px;">
+                                    <button type="button" onclick="togglePw('currentPassword')"
+                                        style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">
+                                        👁
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>New Password</label>
+                                <div style="position:relative;">
+                                    <input type="password" id="newPassword"
+                                        placeholder="Min 6 characters" required minlength="6"
+                                        style="padding-right:45px;">
+                                    <button type="button" onclick="togglePw('newPassword')"
+                                        style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">
+                                        👁
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Confirm New Password</label>
+                                <div style="position:relative;">
+                                    <input type="password" id="confirmNewPassword"
+                                        placeholder="Re-enter new password" required minlength="6"
+                                        style="padding-right:45px;">
+                                    <button type="button" onclick="togglePw('confirmNewPassword')"
+                                        style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">
+                                        👁
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Password Strength -->
+                            <div style="margin-bottom:16px;">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                                    <span style="font-size:0.78rem;color:var(--text-muted);">Password Strength</span>
+                                    <span id="strengthText" style="font-size:0.78rem;"></span>
+                                </div>
+                                <div style="width:100%;height:5px;background:var(--card-border);border-radius:10px;overflow:hidden;">
+                                    <div id="strengthBar" style="height:100%;width:0%;border-radius:10px;transition:all 0.3s;"></div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" id="changePwBtn">
+                                🔑 Change Password
+                            </button>
+                        </form>
+
+                        <div style="margin-top:16px;padding:12px;background:rgba(255,165,2,0.08);border:1px solid rgba(255,165,2,0.2);border-radius:8px;">
+                            <p style="color:var(--warning);font-size:0.78rem;line-height:1.5;text-align:center;">
+                                ⚠️ After changing password, you will be logged out and need to login again with your new password.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
         </main>
     </div>
 
-    <!-- Create Mentorship Modal -->
+    <!-- ===== CREATE MENTORSHIP MODAL ===== -->
     <div class="modal-backdrop" id="mentorshipModal">
         <div class="modal">
             <h3>🎓 Create Mentorship Program</h3>
             <form id="mentorshipForm">
-                <div class="form-group"><label>Program Name *</label><input type="text" id="mName" placeholder="e.g., May Month Mentorship" required></div>
-                <div class="form-group"><label>Description</label><textarea id="mDesc" rows="2" placeholder="Brief description..."></textarea></div>
-                <div class="form-group"><label>Icon (emoji)</label><input type="text" id="mIcon" value="🎓" maxlength="4"></div>
-                <div class="form-group"><label>Color</label><input type="color" id="mColor" value="#6c5ce7" style="height:40px;"></div>
-                <div style="display:flex;gap:10px;"><button type="submit" class="btn btn-primary">Create</button><button type="button" class="btn btn-secondary" onclick="closeModal('mentorshipModal')">Cancel</button></div>
+                <div class="form-group">
+                    <label>Program Name *</label>
+                    <input type="text" id="mName" placeholder="e.g., May Month Mentorship" required>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="mDesc" rows="2" placeholder="Brief description of this program..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Icon (emoji)</label>
+                    <input type="text" id="mIcon" value="🎓" maxlength="4">
+                </div>
+                <div class="form-group">
+                    <label>Color</label>
+                    <input type="color" id="mColor" value="#6c5ce7" style="height:42px;cursor:pointer;">
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <button type="submit" class="btn btn-primary">Create Program</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('mentorshipModal')">Cancel</button>
+                </div>
             </form>
         </div>
     </div>
 
-    <!-- Add Video Modal -->
-    <div class="modal-backdrop" id="videoModal">
-        <div class="modal">
-            <h3>🎬 Add Video</h3>
-            <form id="videoForm">
-                <div class="form-group"><label>Title *</label><input type="text" id="vTitle" placeholder="e.g., Class 1 - Bitcoin Basics" required></div>
-                <div class="form-group"><label>Description</label><textarea id="vDesc" rows="2" placeholder="Brief description..."></textarea></div>
-                <div class="form-group"><label>Mentorship Program *</label><select id="vMentorship" required><option value="">Select program</option></select></div>
-                <div class="form-group"><label>Video URL * (MP4 direct link / Google Drive / Cloudinary)</label><input type="url" id="vUrl" placeholder="https://..." required></div>
-                <div class="form-group"><label>Order (1 = first)</label><input type="number" id="vOrder" value="0" min="0"></div>
-                <div style="display:flex;gap:10px;"><button type="submit" class="btn btn-primary">Add Video</button><button type="button" class="btn btn-secondary" onclick="closeModal('videoModal')">Cancel</button></div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Generate Keys Modal -->
+    <!-- ===== GENERATE KEYS MODAL ===== -->
     <div class="modal-backdrop" id="keyModal">
         <div class="modal">
             <h3>🔑 Generate Access Keys</h3>
             <form id="keyForm">
-                <div class="form-group"><label>Number of Keys (1-100)</label><input type="number" id="kCount" min="1" max="100" value="1"></div>
-                <div class="form-group"><label>Valid for (days)</label><input type="number" id="kExpiry" min="1" max="365" value="30"></div>
-                <div class="form-group"><label>Assign to Programs</label><div class="checkbox-group" id="kMentorships"></div></div>
-                <div class="form-group"><label>Note</label><input type="text" id="kNote" placeholder="e.g., May Batch Students"></div>
-                <div style="display:flex;gap:10px;"><button type="submit" class="btn btn-primary">Generate</button><button type="button" class="btn btn-secondary" onclick="closeModal('keyModal')">Cancel</button></div>
+                <div class="form-group">
+                    <label>Number of Keys (1-100)</label>
+                    <input type="number" id="kCount" min="1" max="100" value="1">
+                </div>
+                <div class="form-group">
+                    <label>Valid for (days)</label>
+                    <input type="number" id="kExpiry" min="1" max="365" value="30">
+                </div>
+                <div class="form-group">
+                    <label>Assign to Programs * <span style="color:var(--danger);font-size:0.75rem;">(select at least one)</span></label>
+                    <div class="checkbox-group" id="kMentorships">
+                        <p style="color:var(--text-muted);font-size:0.82rem;">Loading programs...</p>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Note (optional)</label>
+                    <input type="text" id="kNote" placeholder="e.g., May Batch - Batch 3">
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <button type="submit" class="btn btn-primary">🔑 Generate Keys</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('keyModal')">Cancel</button>
+                </div>
             </form>
-            <div id="generatedKeys" style="margin-top:16px;"></div>
+            <div id="generatedKeys"></div>
         </div>
     </div>
 
+    <script>
+        // Set admin greeting
+        const u = JSON.parse(localStorage.getItem('user') || '{}');
+        const greet = document.getElementById('adminGreeting');
+        if (greet && u.name) greet.textContent = `Hi, ${u.name}`;
+    </script>
     <script src="js/admin.js"></script>
 </body>
 </html>
