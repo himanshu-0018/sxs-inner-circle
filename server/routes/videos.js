@@ -59,12 +59,19 @@ function getFileId(url) {
 
 // Get allowed hosts for referer check
 function getAllowedHosts() {
-    return [
+    const hosts = [
         'sxs-lsnr.online',
         'www.sxs-lsnr.online',
         'localhost',
         '127.0.0.1'
     ];
+
+    // Also add Railway domain if exists
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        hosts.push(process.env.RAILWAY_PUBLIC_DOMAIN);
+    }
+
+    return hosts;
 }
 
 // =============================================
@@ -239,12 +246,18 @@ router.get('/secure-frame/:sessionToken', async (req, res) => {
             `);
         }
 
-        // ── BLOCK DIRECT ACCESS - Must come from our website ──
-        const referer = req.headers.referer || '';
-        const allowedHosts = getAllowedHosts();
-        const isFromOurSite = allowedHosts.some(host => referer.includes(host));
+// BLOCK DIRECT ACCESS - Must come from our website
+// But allow empty referer (some browsers don't send it)
+const referer = req.headers.referer || '';
+const origin = req.headers.origin || '';
+const allowedHosts = getAllowedHosts();
 
-        if (!isFromOurSite) {
+// Allow if referer matches OR origin matches OR referer is empty (iframe load)
+const isFromOurSite = referer === '' ||
+    allowedHosts.some(host => referer.includes(host)) ||
+    allowedHosts.some(host => origin.includes(host));
+
+if (!isFromOurSite) {
             videoSessions.delete(req.params.sessionToken);
             console.log(`🚨 Direct access blocked: Session ${req.params.sessionToken.slice(0, 8)}... | Referer: ${referer || 'NONE'}`);
             return res.status(403).send(`
