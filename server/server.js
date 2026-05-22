@@ -136,6 +136,21 @@ mongoose.connect(process.env.MONGODB_URI)
         const PORT = process.env.PORT || 3000;
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server running on port ${PORT}`);
+
+            // Auto-convert pending videos in background
+            const { autoConvertPending, ffmpegAvailable } = require('./hlsConverter');
+            if (ffmpegAvailable) {
+                const VideoModel = require('./models/Video');
+                // Start conversion after 10 seconds (let server fully boot)
+                setTimeout(() => {
+                    autoConvertPending(VideoModel);
+                }, 10000);
+
+                // Check for new pending videos every 5 minutes
+                setInterval(() => {
+                    autoConvertPending(VideoModel);
+                }, 5 * 60 * 1000);
+            }
         });
     })
     .catch(err => {
