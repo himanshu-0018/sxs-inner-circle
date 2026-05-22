@@ -14,7 +14,7 @@ const videoSchema = new mongoose.Schema({
     mentorship: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Mentorship',
-        required: [true, 'Mentorship is required']
+        required: true
     },
     videoUrl: {
         type: String,
@@ -24,9 +24,27 @@ const videoSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
-    thumbnail: {
+    // HLS conversion status
+    hlsStatus: {
+        type: String,
+        enum: ['pending', 'downloading', 'converting', 'ready', 'failed'],
+        default: 'pending'
+    },
+    hlsProgress: {
+        type: Number,
+        default: 0  // 0-100
+    },
+    hlsSessionId: {
         type: String,
         default: ''
+    },
+    hlsError: {
+        type: String,
+        default: ''
+    },
+    hlsConvertedAt: {
+        type: Date,
+        default: null
     },
     duration: {
         type: String,
