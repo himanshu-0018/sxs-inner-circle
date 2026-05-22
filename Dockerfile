@@ -16,6 +16,9 @@ RUN npm install
 # Copy all files
 COPY . .
 
+# Create temp directory for HLS
+RUN mkdir -p /tmp/sxs-hls
+
 # Expose port
 EXPOSE 3000
 
