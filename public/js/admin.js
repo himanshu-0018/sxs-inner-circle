@@ -111,6 +111,7 @@ function showSection(section, el) {
         keys: loadKeys,
         users: loadUsers,
         profile: loadProfile
+        conversion: loadConversion  // ← ADD THIS
     };
 
     if (loaders[section]) loaders[section]();
@@ -871,6 +872,98 @@ document.getElementById('changePasswordForm')?.addEventListener('submit', async 
         btn.textContent = '🔑 Change Password';
     }
 });
+
+// ===== CONVERSION STATUS =====
+async function loadConversion() {
+    const data = await api('/admin/conversion-stats');
+    if (!data || !data.success) return;
+
+    const s = data.stats;
+    document.getElementById('conversionStats').innerHTML = `
+        <div class="stat-card"><div class="stat-icon">🎬</div><div class="stat-number">${s.total}</div><div class="stat-label">Total Videos</div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-number">${s.ready}</div><div class="stat-label">Converted</div></div>
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-number">${s.pending + s.converting}</div><div class="stat-label">In Queue</div></div>
+        <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-number">${s.failed}</div><div class="stat-label">Failed</div></div>
+        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-number">${s.percentage}%</div><div class="stat-label">Complete</div></div>
+    `;
+
+    const tbody = document.getElementById('conversionBody');
+    if (!data.videos || data.videos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">No videos yet.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = data.videos.map(v => {
+        let statusBadge = '';
+        let progressBar = '';
+
+        switch (v.hlsStatus) {
+            case 'ready':
+                statusBadge = '<span class="status-badge badge-active">✅ Ready</span>';
+                progressBar = '<div style="width:100%;height:6px;background:var(--card-border);border-radius:3px;"><div style="width:100%;height:100%;background:var(--success);border-radius:3px;"></div></div>';
+                break;
+            case 'converting':
+            case 'downloading':
+                statusBadge = `<span class="status-badge badge-available">⏳ ${v.hlsStatus === 'downloading' ? 'Downloading' : 'Converting'}</span>`;
+                progressBar = `<div style="width:100%;height:6px;background:var(--card-border);border-radius:3px;"><div style="width:${v.hlsProgress||0}%;height:100%;background:var(--secondary);border-radius:3px;transition:width 0.3s;"></div></div><span style="font-size:0.72rem;color:var(--secondary);">${v.hlsProgress||0}%</span>`;
+                break;
+            case 'failed':
+                statusBadge = '<span class="status-badge badge-blocked">❌ Failed</span>';
+                progressBar = `<span style="font-size:0.72rem;color:var(--danger);">${esc(v.hlsError || 'Unknown error')}</span>`;
+                break;
+            default:
+                statusBadge = '<span class="status-badge badge-used">⏸ Pending</span>';
+                progressBar = '<span style="font-size:0.72rem;color:var(--text-muted);">Waiting in queue</span>';
+        }
+
+        return `<tr>
+            <td><strong>${esc(v.title)}</strong></td>
+            <td>${statusBadge}</td>
+            <td style="min-width:120px;">${progressBar}</td>
+            <td>${v.duration || '-'}</td>
+            <td style="font-size:0.78rem;">${v.hlsConvertedAt ? fmtDate(v.hlsConvertedAt) : '-'}</td>
+            <td>
+                ${v.hlsStatus === 'failed' || v.hlsStatus === 'pending' ?
+                    `<button class="btn btn-warning btn-small" onclick="retryConversion('${v._id}')">🔄 Retry</button>` : ''}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function retryConversion(id) {
+    const data = await api(`/admin/convert-retry/${id}`, 'POST');
+    if (data.success) {
+        showAlert('success', data.message);
+        loadConversion();
+    } else {
+        showAlert('error', data.message);
+    }
+}
+
+async function convertAllVideos() {
+    const btn = document.getElementById('convertAllBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Starting...';
+
+    const data = await api('/admin/convert-all', 'POST');
+    if (data.success) {
+        showAlert('success', data.message);
+    } else {
+        showAlert('error', data.message);
+    }
+
+    btn.disabled = false;
+    btn.textContent = '🔄 Convert All Pending';
+
+    // Auto refresh every 5 seconds while converting
+    const refreshInterval = setInterval(async () => {
+        await loadConversion();
+        const statsData = await api('/admin/conversion-stats');
+        if (statsData.success && statsData.stats.converting === 0 && statsData.stats.pending === 0) {
+            clearInterval(refreshInterval);
+        }
+    }, 5000);
+}
 
 // =============================================
 // LOGOUT
