@@ -1,6 +1,8 @@
 // server/routes/videos.js
 const express = require('express');
 const crypto = require('crypto');
+const https = require('https');
+const http = require('http');
 const Video = require('../models/Video');
 const User = require('../models/User');
 const Mentorship = require('../models/Mentorship');
@@ -18,7 +20,7 @@ setInterval(() => {
     }
 }, 5 * 60 * 1000);
 
-// Encrypt video URL
+// Encrypt URL
 function encryptUrl(url) {
     const secret = process.env.JWT_SECRET || 'secret';
     const key = crypto.scryptSync(secret, 'salt', 32);
@@ -29,7 +31,7 @@ function encryptUrl(url) {
     return iv.toString('hex') + ':' + encrypted;
 }
 
-// Decrypt video URL
+// Decrypt URL
 function decryptUrl(encryptedData) {
     try {
         const secret = process.env.JWT_SECRET || 'secret';
@@ -52,12 +54,10 @@ function getFileId(url) {
     if (match) return match[1];
     const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
     if (match2) return match2[1];
-    const match3 = url.match(/open\?id=([a-zA-Z0-9_-]+)/);
-    if (match3) return match3[1];
     return null;
 }
 
-// Get allowed hosts for referer check
+// Get allowed hosts
 function getAllowedHosts() {
     const hosts = [
         'sxs-lsnr.online',
@@ -65,17 +65,14 @@ function getAllowedHosts() {
         'localhost',
         '127.0.0.1'
     ];
-
-    // Also add Railway domain if exists
     if (process.env.RAILWAY_PUBLIC_DOMAIN) {
         hosts.push(process.env.RAILWAY_PUBLIC_DOMAIN);
     }
-
     return hosts;
 }
 
 // =============================================
-// GET USER'S MENTORSHIPS
+// GET USER MENTORSHIPS
 // =============================================
 router.get('/my-mentorships', auth, async (req, res) => {
     try {
@@ -95,12 +92,12 @@ router.get('/my-mentorships', auth, async (req, res) => {
         );
         res.json({ success: true, mentorships: mentorshipsWithCount });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error fetching mentorships.' });
+        res.status(500).json({ success: false, message: 'Error.' });
     }
 });
 
 // =============================================
-// GET VIDEOS FOR A MENTORSHIP
+// GET VIDEOS FOR MENTORSHIP
 // =============================================
 router.get('/mentorship/:mentorshipId', auth, async (req, res) => {
     try {
@@ -111,13 +108,9 @@ router.get('/mentorship/:mentorshipId', auth, async (req, res) => {
         if (!userMentorshipIds.includes(req.params.mentorshipId) &&
             req.user.role !== 'admin' &&
             req.user.role !== 'superadmin') {
-            return res.status(403).json({
-                success: false,
-                message: 'No access to this mentorship.'
-            });
+            return res.status(403).json({ success: false, message: 'No access.' });
         }
 
-        // Never send videoUrl to client
         const videos = await Video.find({
             mentorship: req.params.mentorshipId,
             isActive: true
@@ -125,25 +118,21 @@ router.get('/mentorship/:mentorshipId', auth, async (req, res) => {
 
         res.json({ success: true, videos });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error fetching videos.' });
+        res.status(500).json({ success: false, message: 'Error.' });
     }
 });
 
 // =============================================
-// WATCH VIDEO - Returns session token NOT URL
+// WATCH - Returns session token only
 // =============================================
 router.get('/watch/:id', auth, async (req, res) => {
     try {
         const video = await Video.findById(req.params.id).populate('mentorship');
 
         if (!video || !video.isActive) {
-            return res.status(404).json({
-                success: false,
-                message: 'Video not found.'
-            });
+            return res.status(404).json({ success: false, message: 'Video not found.' });
         }
 
-        // Check mentorship access
         const userMentorshipIds = req.user.mentorships.map(m =>
             m._id ? m._id.toString() : m.toString()
         );
@@ -155,294 +144,345 @@ router.get('/watch/:id', auth, async (req, res) => {
         if (!userMentorshipIds.includes(videoMentorshipId) &&
             req.user.role !== 'admin' &&
             req.user.role !== 'superadmin') {
-            return res.status(403).json({
-                success: false,
-                message: 'You do not have access to this video.'
-            });
+            return res.status(403).json({ success: false, message: 'No access.' });
         }
 
-        // Increment view count
         video.viewCount += 1;
         await video.save();
 
-        // Create secure encrypted session
+        // Create session token
         const sessionToken = crypto.randomBytes(32).toString('hex');
         const encryptedUrl = encryptUrl(video.videoUrl);
 
-        // Store session with 2 hour expiry
         videoSessions.set(sessionToken, {
             videoId: video._id.toString(),
             userId: req.user._id.toString(),
-            encryptedUrl: encryptedUrl,
+            encryptedUrl,
             expires: Date.now() + (2 * 60 * 60 * 1000),
-            userAgent: req.headers['user-agent'],
-            loaded: false,
             loadCount: 0
         });
 
-        // Return session token - NEVER the video URL
-// Check if watermarks are enabled
-const watermarkEnabled = process.env.WATERMARK_ENABLED !== 'false';
-
-res.json({
-    success: true,
-    video: {
-        id: video._id,
-        title: video.title,
-        description: video.description,
-        mentorship: video.mentorship ? video.mentorship.name : '',
-        viewCount: video.viewCount,
-        createdAt: video.createdAt
-    },
-    sessionToken,
-    watermarkEnabled,
-    watermark: watermarkEnabled ? {
-        name: req.user.name,
-        email: req.user.email,
-        phone: req.user.phone || '',
-        id: req.user._id.toString().slice(-6).toUpperCase()
-    } : null
-});
+        res.json({
+            success: true,
+            video: {
+                id: video._id,
+                title: video.title,
+                description: video.description,
+                mentorship: video.mentorship ? video.mentorship.name : '',
+                viewCount: video.viewCount,
+                createdAt: video.createdAt
+                // ✅ NO videoUrl sent
+            },
+            sessionToken,
+            watermark: {
+                name: req.user.name,
+                email: req.user.email,
+                phone: req.user.phone || '',
+                id: req.user._id.toString().slice(-6).toUpperCase()
+            }
+        });
 
     } catch (error) {
         console.error('Watch error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error loading video.'
-        });
+        res.status(500).json({ success: false, message: 'Error.' });
     }
 });
 
 // =============================================
-// SECURE FRAME - Serves video with watermarks
-// ONLY works when embedded in our watch page
+// SECURE FRAME - HTML page with video player
+// Google Drive URL is NEVER sent to browser
 // =============================================
 router.get('/secure-frame/:sessionToken', async (req, res) => {
     try {
         const session = videoSessions.get(req.params.sessionToken);
 
-        // ── Validate session exists ──
         if (!session) {
-            return res.status(403).send(`
-                <html><body style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;">
-                    <div>
-                        <h1 style="font-size:4rem;">⛔</h1>
-                        <h2>Access Denied</h2>
-                        <p style="color:#8888aa;margin-top:10px;">This link has expired or is invalid.</p>
-                        <p style="color:#555;margin-top:15px;font-size:0.8rem;">Please go back to the platform and try again.</p>
-                    </div>
-                </body></html>
-            `);
+            return res.status(403).send(errorPage('Session expired or invalid.'));
         }
 
-        // ── Check expiry ──
         if (Date.now() > session.expires) {
             videoSessions.delete(req.params.sessionToken);
-            return res.status(403).send(`
-                <html><body style="background:#0a0a1a;color:#ffa502;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;">
-                    <div>
-                        <h1 style="font-size:4rem;">⏰</h1>
-                        <h2>Session Expired</h2>
-                        <p style="color:#8888aa;margin-top:10px;">Please go back and refresh the page.</p>
-                    </div>
-                </body></html>
-            `);
+            return res.status(403).send(errorPage('Session expired. Please refresh.'));
         }
 
-// BLOCK DIRECT ACCESS - Must come from our website
-// But allow empty referer (some browsers don't send it)
-const referer = req.headers.referer || '';
-const origin = req.headers.origin || '';
-const allowedHosts = getAllowedHosts();
+        // Check referer
+        const referer = req.headers.referer || '';
+        const origin = req.headers.origin || '';
+        const allowedHosts = getAllowedHosts();
+        const isFromOurSite = referer === '' ||
+            allowedHosts.some(h => referer.includes(h)) ||
+            allowedHosts.some(h => origin.includes(h));
 
-// Allow if referer matches OR origin matches OR referer is empty (iframe load)
-const isFromOurSite = referer === '' ||
-    allowedHosts.some(host => referer.includes(host)) ||
-    allowedHosts.some(host => origin.includes(host));
-
-if (!isFromOurSite) {
+        if (!isFromOurSite) {
             videoSessions.delete(req.params.sessionToken);
-            console.log(`🚨 Direct access blocked: Session ${req.params.sessionToken.slice(0, 8)}... | Referer: ${referer || 'NONE'}`);
-            return res.status(403).send(`
-                <html><body style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;">
-                    <div>
-                        <h1 style="font-size:4rem;">🚫</h1>
-                        <h2>Direct Access Blocked</h2>
-                        <p style="color:#8888aa;margin-top:10px;">Videos can only be watched from the platform.</p>
-                        <p style="color:#ff6b6b;margin-top:15px;font-size:0.85rem;">This attempt has been logged.</p>
-                    </div>
-                </body></html>
-            `);
+            return res.status(403).send(errorPage('Direct access blocked.'));
         }
 
-        // ── Check load count ──
         session.loadCount = (session.loadCount || 0) + 1;
-        if (session.loadCount > 15) {
+        if (session.loadCount > 20) {
             videoSessions.delete(req.params.sessionToken);
-            return res.status(403).send(`
-                <html><body style="background:#0a0a1a;color:#ffa502;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;">
-                    <div>
-                        <h1 style="font-size:4rem;">⚠️</h1>
-                        <h2>Too Many Requests</h2>
-                        <p style="color:#8888aa;margin-top:10px;">Please refresh the watch page.</p>
-                    </div>
-                </body></html>
-            `);
+            return res.status(403).send(errorPage('Too many requests.'));
         }
-        session.loaded = true;
 
-        // ── Verify user is still active ──
+        // Verify user
         const user = await User.findById(session.userId);
         if (!user || user.isBlocked || !user.isActive) {
             videoSessions.delete(req.params.sessionToken);
-            return res.status(403).send(`
-                <html><body style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;">
-                    <div>
-                        <h1 style="font-size:4rem;">🚫</h1>
-                        <h2>Account Suspended</h2>
-                        <p style="color:#8888aa;margin-top:10px;">Your account has been blocked. Contact admin.</p>
-                    </div>
-                </body></html>
-            `);
+            return res.status(403).send(errorPage('Account suspended.'));
         }
 
-        // ── Decrypt URL server-side ──
+        // Decrypt URL server-side
         const videoUrl = decryptUrl(session.encryptedUrl);
         if (!videoUrl) {
-            return res.status(500).send('Error loading video.');
+            return res.status(500).send(errorPage('Error loading video.'));
         }
 
-        // ── Build embed URL ──
+        // Get file ID
         const fileId = getFileId(videoUrl);
-        const embedUrl = fileId
-            ? `https://drive.google.com/file/d/${fileId}/preview`
-            : videoUrl;
 
-        // ── Get watermark data ──
-        // Check if watermarks are enabled via environment variable
-const watermarkEnabled = process.env.WATERMARK_ENABLED !== 'false';
+        // Generate a VIDEO PROXY token
+        // This token is used to stream video bytes
+        // Google Drive URL NEVER leaves server
+        const proxyToken = crypto.randomBytes(24).toString('hex');
+        videoSessions.set(`proxy_${proxyToken}`, {
+            fileId,
+            videoUrl,
+            userId: session.userId,
+            expires: Date.now() + (2 * 60 * 60 * 1000)
+        });
+
+        // Watermark data
         const wmName = user.name || 'User';
         const wmEmail = user.email || '';
-        const wmId = user._id.toString().slice(-6).toUpperCase();
-        const wmFull = `${wmName}  •  ${wmEmail}  •  ID:${wmId}`;
-        const wmShort = `${wmName}  |  ${wmEmail}`;
+        const wmShort = escHtml(`${wmName}  |  ${wmEmail}`);
 
-        // Escape for safe HTML injection
-        const escapeHtml = (str) => {
-            return str.replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        };
-
-        const safeWmFull = escapeHtml(wmFull);
-        const safeWmShort = escapeHtml(wmShort);
-        const safeWmEmail = escapeHtml(wmEmail);
-        const safeWmId = escapeHtml(wmId);
-
-        // ── Security headers ──
+        // Security headers
         res.setHeader('Content-Type', 'text/html');
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
         res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-        res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://sxs-lsnr.online https://www.sxs-lsnr.online");
-        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Security-Policy',
+            "frame-ancestors 'self' https://sxs-lsnr.online https://www.sxs-lsnr.online");
         res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-        res.setHeader('Referrer-Policy', 'no-referrer');
 
-        // ── Serve protected HTML page ──
+        // Send HTML with our VIDEO PROXY URL (not Google Drive)
         res.send(`
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         html, body {
-            width:100%; height:100%;
-            background:#000;
-            overflow:hidden;
-            -webkit-user-select:none;
-            user-select:none;
-            -webkit-touch-callout:none;
+            width:100%; height:100%; background:#000; overflow:hidden;
+            -webkit-user-select:none; user-select:none;
         }
-        .video-frame {
-            width:100%;
-            height:100%;
-            border:none;
-            display:block;
+        video {
+            width:100%; height:100%; object-fit:contain;
+            position:absolute; top:0; left:0;
+        }
+        /* Hide ALL video controls including download */
+        video::-webkit-media-controls { display:none !important; }
+        video::-webkit-media-controls-enclosure { display:none !important; }
+        video::-webkit-media-controls-panel { display:none !important; }
+        video::-internal-media-controls-download-button { display:none !important; }
+        video::-webkit-media-controls-download-button { display:none !important; }
+
+        /* Watermark */
+        .wm {
             position:absolute;
-            top:0; left:0;
-            z-index:1;
+            color:rgba(255,255,255,0.30);
+            font-size:clamp(14px,2.5vw,24px);
+            font-family:'Courier New',monospace;
+            font-weight:800;
+            white-space:nowrap;
+            pointer-events:none;
+            user-select:none;
+            z-index:10;
+            letter-spacing:2px;
+            text-shadow: 0 0 6px rgba(0,0,0,0.9), 2px 2px 4px rgba(0,0,0,0.8);
+            animation: wmMove1 15s linear infinite;
         }
-        .single-watermark {
+        .wm2 {
             position:absolute;
             color:rgba(255,255,255,0.20);
-            font-size:clamp(14px, 2.2vw, 22px);
-            font-family:'Courier New', monospace;
+            font-size:clamp(12px,2vw,20px);
+            font-family:'Courier New',monospace;
             font-weight:800;
             white-space:nowrap;
             pointer-events:none;
             user-select:none;
             z-index:10;
             letter-spacing:1px;
-            text-shadow:
-                0 0 4px rgba(0,0,0,0.8),
-                0 0 8px rgba(0,0,0,0.5);
-            animation: singleMove 20s linear infinite;
+            text-shadow: 0 0 4px rgba(0,0,0,0.8);
+            animation: wmMove2 18s linear infinite;
         }
-        @keyframes singleMove {
-            0% { top:15%; left:-50%; }
-            25% { top:45%; left:60%; }
-            50% { top:75%; left:10%; }
-            75% { top:30%; left:70%; }
+        @keyframes wmMove1 {
+            0%   { top:15%; left:-50%; }
+            25%  { top:50%; left:65%; }
+            50%  { top:75%; left:10%; }
+            75%  { top:35%; left:75%; }
             100% { top:15%; left:-50%; }
         }
-        .gd-block-top {
-            position:absolute;
-            top:0; right:0;
-            width:140px; height:55px;
-            z-index:20;
-            background:transparent;
+        @keyframes wmMove2 {
+            0%   { top:70%; left:110%; }
+            25%  { top:25%; left:20%; }
+            50%  { top:55%; left:75%; }
+            75%  { top:15%; left:45%; }
+            100% { top:70%; left:110%; }
         }
-        .gd-block-bottom {
+
+        /* Custom controls */
+        .controls {
             position:absolute;
-            bottom:0; right:0;
-            width:70px; height:50px;
+            bottom:0; left:0; right:0;
+            background:linear-gradient(transparent, rgba(0,0,0,0.8));
+            padding:20px 16px 12px;
             z-index:20;
-            background:transparent;
+            display:flex;
+            align-items:center;
+            gap:12px;
+            opacity:0;
+            transition:opacity 0.3s;
         }
+        body:hover .controls { opacity:1; }
+        .progress-wrap {
+            flex:1;
+            height:5px;
+            background:rgba(255,255,255,0.2);
+            border-radius:5px;
+            cursor:pointer;
+            position:relative;
+        }
+        .progress-bar {
+            height:100%;
+            background:linear-gradient(90deg,#6c5ce7,#00cec9);
+            border-radius:5px;
+            width:0%;
+            pointer-events:none;
+        }
+        .ctrl-btn {
+            background:none;
+            border:none;
+            color:#fff;
+            font-size:1.2rem;
+            cursor:pointer;
+            padding:4px 8px;
+            border-radius:4px;
+            transition:background 0.2s;
+            flex-shrink:0;
+        }
+        .ctrl-btn:hover { background:rgba(255,255,255,0.15); }
+        .ctrl-time {
+            color:rgba(255,255,255,0.8);
+            font-size:0.75rem;
+            font-family:monospace;
+            white-space:nowrap;
+            flex-shrink:0;
+        }
+        .vol-slider {
+            width:60px;
+            accent-color:#6c5ce7;
+            flex-shrink:0;
+        }
+        .gd-block { position:absolute; z-index:30; background:transparent; }
     </style>
 </head>
-<body oncontextmenu="return false" ondragstart="return false" onselectstart="return false">
-    <iframe class="video-frame"
-        src="${embedUrl}"
-        allow="autoplay; encrypted-media"
-        sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
-        allowfullscreen="false">
-    </iframe>
+<body oncontextmenu="return false" ondragstart="return false">
+    <!-- VIDEO - Streaming through OUR server proxy -->
+    <!-- Google Drive URL is NEVER exposed to browser -->
+    <video id="vid"
+        playsinline
+        webkit-playsinline
+        preload="auto"
+        controlsList="nodownload noplaybackrate"
+        disablePictureInPicture
+        disableRemotePlayback
+        oncontextmenu="return false">
+        <source src="/api/videos/proxy/${proxyToken}" type="video/mp4">
+    </video>
 
-    <!-- Single clean watermark -->
-    <div class="single-watermark">${safeWmShort}</div>
+    <!-- Watermarks -->
+    <div class="wm" id="wm1">${wmShort}</div>
+    <div class="wm2" id="wm2">${wmShort}</div>
 
-    <!-- Block Google Drive buttons -->
-    <div class="gd-block-top"></div>
-    <div class="gd-block-bottom"></div>
+    <!-- Custom controls (no download button!) -->
+    <div class="controls" id="controls">
+        <button class="ctrl-btn" id="playBtn" onclick="togglePlay()">▶</button>
+        <div class="progress-wrap" id="progressWrap">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <span class="ctrl-time" id="timeDisplay">0:00 / 0:00</span>
+        <button class="ctrl-btn" id="muteBtn" onclick="toggleMute()">🔊</button>
+        <input type="range" class="vol-slider" id="volSlider" min="0" max="1" step="0.05" value="1">
+        <button class="ctrl-btn" onclick="toggleFS()">⛶</button>
+    </div>
 
     <script>
+        var vid = document.getElementById('vid');
+        var progressBar = document.getElementById('progressBar');
+        var timeDisplay = document.getElementById('timeDisplay');
+        var playBtn = document.getElementById('playBtn');
+
+        // Play/Pause
+        function togglePlay() {
+            if (vid.paused) { vid.play(); playBtn.textContent = '⏸'; }
+            else { vid.pause(); playBtn.textContent = '▶'; }
+        }
+        function toggleMute() {
+            vid.muted = !vid.muted;
+            document.getElementById('muteBtn').textContent = vid.muted ? '🔇' : '🔊';
+        }
+        function toggleFS() {
+            if (document.fullscreenElement) { document.exitFullscreen(); }
+            else { document.documentElement.requestFullscreen(); }
+        }
+
+        // Progress
+        vid.addEventListener('timeupdate', function() {
+            if (!vid.duration) return;
+            progressBar.style.width = (vid.currentTime / vid.duration * 100) + '%';
+            timeDisplay.textContent = fmt(vid.currentTime) + ' / ' + fmt(vid.duration);
+        });
+
+        document.getElementById('progressWrap').addEventListener('click', function(e) {
+            var pct = e.offsetX / this.offsetWidth;
+            vid.currentTime = pct * vid.duration;
+        });
+
+        document.getElementById('volSlider').addEventListener('input', function() {
+            vid.volume = this.value;
+        });
+
+        function fmt(s) {
+            if (isNaN(s)) return '0:00';
+            var m = Math.floor(s/60), sec = Math.floor(s%60);
+            return m + ':' + (sec<10?'0':'') + sec;
+        }
+
+        vid.addEventListener('ended', function() { playBtn.textContent = '↩'; });
+        vid.addEventListener('pause', function() { playBtn.textContent = '▶'; });
+        vid.addEventListener('play', function() { playBtn.textContent = '⏸'; });
+
+        // Auto-play
+        vid.play().catch(function() {});
+
+        // Security
         document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
         document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey || e.metaKey || e.key === 'F12') { e.preventDefault(); return false; }
+            if (e.ctrlKey || e.metaKey || e.key === 'F12') {
+                e.preventDefault(); return false;
+            }
+            if (e.key === ' ' || e.key === 'k') { e.preventDefault(); togglePlay(); }
+            if (e.key === 'f') { e.preventDefault(); toggleFS(); }
+            if (e.key === 'm') { e.preventDefault(); toggleMute(); }
         });
         document.addEventListener('dragstart', function(e) { e.preventDefault(); });
         document.addEventListener('copy', function(e) { e.preventDefault(); });
 
+        // Block if opened directly
         if (window === window.top) {
-            document.body.innerHTML = '<div style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;"><div><h1 style="font-size:4rem;">🚫</h1><h2>Direct Access Blocked</h2></div></div>';
+            document.body.innerHTML = '<div style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;"><div><h1>🚫</h1><h2>Direct Access Blocked</h2></div></div>';
         }
     </script>
 </body>
@@ -451,31 +491,161 @@ const watermarkEnabled = process.env.WATERMARK_ENABLED !== 'false';
 
     } catch (error) {
         console.error('Secure frame error:', error);
-        res.status(500).send('Error loading video.');
+        res.status(500).send(errorPage('Error loading video.'));
     }
 });
 
 // =============================================
-// REFRESH SESSION - Keep alive
+// VIDEO PROXY - Streams video through our server
+// Google Drive URL NEVER reaches the browser
+// =============================================
+router.get('/proxy/:proxyToken', async (req, res) => {
+    try {
+        const session = videoSessions.get(`proxy_${req.params.proxyToken}`);
+
+        if (!session) {
+            return res.status(403).send('Access denied.');
+        }
+
+        if (Date.now() > session.expires) {
+            videoSessions.delete(`proxy_${req.params.proxyToken}`);
+            return res.status(403).send('Session expired.');
+        }
+
+        // Verify referer comes from our secure-frame
+        const referer = req.headers.referer || '';
+        const allowedHosts = getAllowedHosts();
+        const isValid = referer === '' ||
+            allowedHosts.some(h => referer.includes(h)) ||
+            referer.includes('/api/videos/secure-frame/');
+
+        // Build Google Drive direct download URL
+        const fileId = session.fileId;
+        if (!fileId) {
+            return res.status(400).send('Invalid video.');
+        }
+
+        // Google Drive direct stream URL
+        const driveUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+
+        // Fetch from Google Drive server-side
+        const fetchDriveVideo = (url, redirectCount = 0) => {
+            if (redirectCount > 5) {
+                res.status(500).send('Too many redirects.');
+                return;
+            }
+
+            const protocol = url.startsWith('https') ? https : http;
+            const range = req.headers.range;
+
+            const options = {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; SxS-Stream/1.0)',
+                    'Accept': '*/*',
+                    ...(range ? { 'Range': range } : {})
+                }
+            };
+
+            const proxyReq = protocol.get(url, options, (proxyRes) => {
+                // Handle redirects (Google Drive redirects to actual file)
+                if (proxyRes.statusCode === 301 || proxyRes.statusCode === 302 ||
+                    proxyRes.statusCode === 303 || proxyRes.statusCode === 307) {
+                    const redirectUrl = proxyRes.headers.location;
+                    if (redirectUrl) {
+                        proxyReq.destroy();
+                        fetchDriveVideo(redirectUrl, redirectCount + 1);
+                        return;
+                    }
+                }
+
+                // Set response headers
+                const responseHeaders = {
+                    'Content-Type': proxyRes.headers['content-type'] || 'video/mp4',
+                    'Accept-Ranges': 'bytes',
+                    'Cache-Control': 'no-store, no-cache, private',
+                    'Content-Disposition': 'inline',
+                    'X-Content-Type-Options': 'nosniff'
+                };
+
+                if (proxyRes.headers['content-length']) {
+                    responseHeaders['Content-Length'] = proxyRes.headers['content-length'];
+                }
+                if (proxyRes.headers['content-range']) {
+                    responseHeaders['Content-Range'] = proxyRes.headers['content-range'];
+                }
+
+                res.writeHead(proxyRes.statusCode, responseHeaders);
+                proxyRes.pipe(res);
+
+                proxyRes.on('error', (err) => {
+                    console.error('Proxy response error:', err);
+                });
+            });
+
+            proxyReq.on('error', (err) => {
+                console.error('Proxy request error:', err);
+                if (!res.headersSent) {
+                    res.status(500).send('Stream error.');
+                }
+            });
+
+            req.on('close', () => {
+                proxyReq.destroy();
+            });
+        };
+
+        fetchDriveVideo(driveUrl);
+
+    } catch (error) {
+        console.error('Proxy error:', error);
+        if (!res.headersSent) {
+            res.status(500).send('Error.');
+        }
+    }
+});
+
+// =============================================
+// REFRESH SESSION
 // =============================================
 router.post('/refresh-session', auth, async (req, res) => {
     try {
-        const { sessionToken, videoId } = req.body;
+        const { sessionToken } = req.body;
         const session = videoSessions.get(sessionToken);
 
         if (!session || session.userId !== req.user._id.toString()) {
-            return res.status(403).json({ success: false, message: 'Invalid session.' });
+            return res.status(403).json({ success: false });
         }
 
-        // Extend session by 2 hours
         session.expires = Date.now() + (2 * 60 * 60 * 1000);
-        session.loadCount = 0; // Reset load count on refresh
+        session.loadCount = 0;
         videoSessions.set(sessionToken, session);
 
-        res.json({ success: true, message: 'Session refreshed.' });
+        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false });
     }
 });
+
+// =============================================
+// HELPERS
+// =============================================
+function errorPage(message) {
+    return `
+        <html><body style="background:#0a0a1a;color:#ff4757;display:flex;
+            align-items:center;justify-content:center;height:100vh;
+            font-family:monospace;text-align:center;">
+            <div>
+                <h1 style="font-size:3rem;">🚫</h1>
+                <h2>${message}</h2>
+                <p style="color:#555;margin-top:10px;">Go back to the platform.</p>
+            </div>
+        </body></html>
+    `;
+}
+
+function escHtml(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
 
 module.exports = router;
