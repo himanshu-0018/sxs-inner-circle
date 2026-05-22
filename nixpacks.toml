@@ -1,0 +1,12 @@
+# nixpacks.toml
+[phases.setup]
+nixPkgs = ["ffmpeg", "nodejs_18"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["echo 'Build complete'"]
+
+[start]
+cmd = "node server/server.js"
