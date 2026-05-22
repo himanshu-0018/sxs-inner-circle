@@ -28,6 +28,7 @@
         <button onclick="showSection('keys',this)">🔑 Keys</button>
         <button onclick="showSection('users',this)">👥 Users</button>
         <button onclick="showSection('profile',this)">👤 Profile</button>
+        <button onclick="showSection('conversion',this)">🔄 Convert</button>
     </div>
 
     <div class="admin-layout">
@@ -40,6 +41,7 @@
             <button class="menu-item" onclick="showSection('keys',this)"><span>🔑</span> Access Keys</button>
             <button class="menu-item" onclick="showSection('users',this)"><span>👥</span> Users</button>
             <button class="menu-item" onclick="showSection('profile',this)"><span>👤</span> My Profile</button>
+            <button class="menu-item" onclick="showSection('conversion',this)"><span>🔄</span> Conversion</button>
         </aside>
 
         <!-- Main Content -->
@@ -166,6 +168,44 @@
                     </div>
                 </div>
             </section>
+
+            <!-- ===== CONVERSION STATUS SECTION ===== -->
+<section id="section-conversion" style="display:none;">
+    <h2 style="margin-bottom:18px;">🎬 Video Conversion Status</h2>
+
+    <div class="stats-grid" id="conversionStats">
+        <div class="loading-spinner"><div class="spinner"></div></div>
+    </div>
+
+    <div style="margin-bottom:18px;">
+        <button class="btn btn-primary" onclick="convertAllVideos()" id="convertAllBtn" style="width:auto;padding:10px 24px;">
+            🔄 Convert All Pending
+        </button>
+    </div>
+
+    <div class="table-container">
+        <div class="table-header">
+            <h3>📊 Conversion Progress</h3>
+        </div>
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Video</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                        <th>Duration</th>
+                        <th>Converted</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="conversionBody">
+                    <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
 
             <!-- ===== ACCESS KEYS SECTION ===== -->
             <section id="section-keys" style="display:none;">
