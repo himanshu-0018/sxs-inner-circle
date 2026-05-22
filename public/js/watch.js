@@ -389,8 +389,10 @@
                 if (loading) loading.style.display = 'none';
             }, 5000);
 
-            // Build watermarks
-            buildWatermarks(watermark);
+// Build watermarks only if enabled
+if (data.watermarkEnabled && watermark) {
+    buildWatermarks(watermark);
+}
 
             // Setup fullscreen
             setupFullscreen();
@@ -655,12 +657,16 @@
     setInterval(() => { console.log('%c', devImg); }, 3000);
 
     // Watermark integrity check
-    setInterval(() => {
-        const layers = wrapper.querySelectorAll('.watermark-layer, .wm-center, .wm-corner');
-        if (layers.length < 6) {
-            banUser('Watermark tampering - DOM elements removed');
-        }
-    }, 3000);
+// Watermark integrity check (only if watermarks enabled)
+setInterval(() => {
+    // Skip check if watermarks are disabled
+    if (!wrapper.querySelector('.watermark-layer')) return;
+
+    const layers = wrapper.querySelectorAll('.watermark-layer, .wm-center, .wm-corner');
+    if (layers.length < 6) {
+        banUser('Watermark tampering - DOM elements removed');
+    }
+}, 3000);
 
     // MutationObserver
     const observer = new MutationObserver((mutations) => {
