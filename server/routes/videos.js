@@ -181,25 +181,28 @@ router.get('/watch/:id', auth, async (req, res) => {
         });
 
         // Return session token - NEVER the video URL
-        res.json({
-            success: true,
-            video: {
-                id: video._id,
-                title: video.title,
-                description: video.description,
-                mentorship: video.mentorship ? video.mentorship.name : '',
-                viewCount: video.viewCount,
-                createdAt: video.createdAt
-                // ✅ NO videoUrl sent to client
-            },
-            sessionToken,
-            watermark: {
-                name: req.user.name,
-                email: req.user.email,
-                phone: req.user.phone || '',
-                id: req.user._id.toString().slice(-6).toUpperCase()
-            }
-        });
+// Check if watermarks are enabled
+const watermarkEnabled = process.env.WATERMARK_ENABLED !== 'false';
+
+res.json({
+    success: true,
+    video: {
+        id: video._id,
+        title: video.title,
+        description: video.description,
+        mentorship: video.mentorship ? video.mentorship.name : '',
+        viewCount: video.viewCount,
+        createdAt: video.createdAt
+    },
+    sessionToken,
+    watermarkEnabled,
+    watermark: watermarkEnabled ? {
+        name: req.user.name,
+        email: req.user.email,
+        phone: req.user.phone || '',
+        id: req.user._id.toString().slice(-6).toUpperCase()
+    } : null
+});
 
     } catch (error) {
         console.error('Watch error:', error);
@@ -316,6 +319,8 @@ if (!isFromOurSite) {
             : videoUrl;
 
         // ── Get watermark data ──
+        // Check if watermarks are enabled via environment variable
+const watermarkEnabled = process.env.WATERMARK_ENABLED !== 'false';
         const wmName = user.name || 'User';
         const wmEmail = user.email || '';
         const wmId = user._id.toString().slice(-6).toUpperCase();
@@ -376,8 +381,7 @@ if (!isFromOurSite) {
             top:0; left:0;
             z-index:1;
         }
-
-        /* ===== WATERMARKS INSIDE IFRAME ===== */
+        ${watermarkEnabled ? `
         .iwm-layer {
             position:absolute;
             top:0; left:0;
@@ -426,7 +430,6 @@ if (!isFromOurSite) {
             font-size:clamp(10px,1.5vw,17px);
             animation: iwmSlide6 22s linear infinite;
         }
-
         @keyframes iwmSlide1 {
             0% { top:10%; left:-50%; transform:rotate(-12deg); }
             50% { top:60%; left:110%; transform:rotate(-12deg); }
@@ -460,7 +463,6 @@ if (!isFromOurSite) {
             50% { top:55%; left:-50%; transform:rotate(-20deg); }
             100% { top:45%; left:110%; transform:rotate(-20deg); }
         }
-
         .iwm-center {
             position:absolute;
             top:50%; left:50%;
@@ -480,7 +482,6 @@ if (!isFromOurSite) {
             0%,100% { opacity:0.08; transform:translate(-50%,-50%) scale(1); }
             50% { opacity:0.16; transform:translate(-50%,-50%) scale(1.05); }
         }
-
         .iwm-corner {
             position:absolute;
             color:rgba(255,255,255,0.25);
@@ -500,7 +501,6 @@ if (!isFromOurSite) {
         .iwm-tr { top:8px; right:8px; }
         .iwm-bl { bottom:8px; left:8px; }
         .iwm-br { bottom:8px; right:8px; }
-
         .iwm-grid {
             position:absolute;
             top:-50%; left:-50%;
@@ -521,7 +521,6 @@ if (!isFromOurSite) {
             user-select:none;
             text-shadow: 0 0 2px rgba(0,0,0,0.5);
         }
-
         .iwm-random {
             position:absolute;
             color:rgba(255,255,255,0.14);
@@ -535,8 +534,14 @@ if (!isFromOurSite) {
             text-shadow: 0 0 4px rgba(0,0,0,0.7);
             transition: all 3s ease;
         }
-
-        /* Block Google Drive buttons */
+        .iwm-canvas {
+            position:absolute;
+            top:0; left:0;
+            width:100%; height:100%;
+            pointer-events:none;
+            z-index:14;
+        }
+        ` : ''}
         .gd-block-top {
             position:absolute;
             top:0; right:0;
@@ -551,27 +556,9 @@ if (!isFromOurSite) {
             z-index:20;
             background:transparent;
         }
-        .gd-block-bottom-left {
-            position:absolute;
-            bottom:0; left:0;
-            width:50px; height:50px;
-            z-index:20;
-            background:transparent;
-        }
-
-        /* Canvas watermark */
-        .iwm-canvas {
-            position:absolute;
-            top:0; left:0;
-            width:100%; height:100%;
-            pointer-events:none;
-            z-index:14;
-        }
     </style>
 </head>
 <body oncontextmenu="return false" ondragstart="return false" onselectstart="return false">
-
-    <!-- Video iframe -->
     <iframe class="video-frame" id="videoFrame"
         src="${embedUrl}"
         allow="autoplay; encrypted-media"
@@ -580,8 +567,8 @@ if (!isFromOurSite) {
         loading="lazy">
     </iframe>
 
-    <!-- WATERMARK LAYERS INSIDE IFRAME PAGE -->
-    <!-- Layer 1: 6 Moving watermarks -->
+    ${watermarkEnabled ? `
+    <!-- WATERMARK LAYERS -->
     <div class="iwm-layer">
         <div class="iwm-text iwm-1">${safeWmFull}</div>
         <div class="iwm-text iwm-2">${safeWmShort}</div>
@@ -590,29 +577,22 @@ if (!isFromOurSite) {
         <div class="iwm-text iwm-5">${safeWmFull}</div>
         <div class="iwm-text iwm-6">${safeWmShort}</div>
     </div>
-
-    <!-- Layer 2: Center pulsing -->
     <div class="iwm-center">${safeWmFull}</div>
-
-    <!-- Layer 3: Corner stamps -->
     <div class="iwm-corner iwm-tl">${safeWmShort}</div>
     <div class="iwm-corner iwm-tr">ID: ${safeWmId}</div>
     <div class="iwm-corner iwm-bl">${safeWmEmail}</div>
     <div class="iwm-corner iwm-br" id="iwmTime"></div>
-
-    <!-- Layer 4: Grid watermark -->
     <div class="iwm-grid" id="iwmGrid"></div>
-
-    <!-- Layer 5: Canvas watermark (rendered by JS) -->
     <canvas class="iwm-canvas" id="iwmCanvas"></canvas>
+    ` : ''}
 
     <!-- Block Google Drive buttons -->
     <div class="gd-block-top"></div>
     <div class="gd-block-bottom-right"></div>
-    <div class="gd-block-bottom-left"></div>
 
     <script>
-        // ── Timestamp update ──
+        ${watermarkEnabled ? `
+        // Timestamp
         function updateTime() {
             var el = document.getElementById('iwmTime');
             if (el) el.textContent = new Date().toLocaleString();
@@ -620,7 +600,7 @@ if (!isFromOurSite) {
         updateTime();
         setInterval(updateTime, 1000);
 
-        // ── Build grid watermark ──
+        // Grid watermark
         var grid = document.getElementById('iwmGrid');
         if (grid) {
             for (var i = 0; i < 80; i++) {
@@ -631,35 +611,27 @@ if (!isFromOurSite) {
             }
         }
 
-        // ── Canvas watermark ──
+        // Canvas watermark
         function drawCanvas() {
             var canvas = document.getElementById('iwmCanvas');
             if (!canvas) return;
             canvas.width = window.innerWidth * 2;
             canvas.height = window.innerHeight * 2;
             var ctx = canvas.getContext('2d');
-
-            // Visible layer
             ctx.font = 'bold 14px Courier New';
             ctx.fillStyle = 'rgba(255,255,255,0.05)';
             for (var y = 30; y < canvas.height; y += 75) {
                 for (var x = 0; x < canvas.width; x += 380) {
-                    ctx.save();
-                    ctx.translate(x, y);
-                    ctx.rotate(-0.35);
+                    ctx.save(); ctx.translate(x, y); ctx.rotate(-0.35);
                     ctx.fillText('${safeWmShort.replace(/'/g, "\\'")}', 0, 0);
                     ctx.restore();
                 }
             }
-
-            // Forensic layer
             ctx.font = 'bold 9px Courier New';
             ctx.fillStyle = 'rgba(255,255,255,0.012)';
             for (var y2 = 50; y2 < canvas.height; y2 += 50) {
                 for (var x2 = 60; x2 < canvas.width; x2 += 280) {
-                    ctx.save();
-                    ctx.translate(x2, y2);
-                    ctx.rotate(0.2);
+                    ctx.save(); ctx.translate(x2, y2); ctx.rotate(0.2);
                     ctx.fillText('${safeWmEmail.replace(/'/g, "\\'")}|${safeWmId}|' + Date.now(), 0, 0);
                     ctx.restore();
                 }
@@ -669,7 +641,7 @@ if (!isFromOurSite) {
         setInterval(drawCanvas, 30000);
         window.addEventListener('resize', drawCanvas);
 
-        // ── Random watermarks ──
+        // Random watermarks
         function spawnRandom() {
             var existing = document.querySelectorAll('.iwm-random');
             if (existing.length > 8) existing[0].remove();
@@ -680,52 +652,28 @@ if (!isFromOurSite) {
             el.style.left = (Math.random() * 55 + 10) + '%';
             el.style.transform = 'rotate(' + (Math.random() * 30 - 15) + 'deg)';
             document.body.appendChild(el);
-            setTimeout(function() {
-                el.style.top = (Math.random() * 70 + 5) + '%';
-                el.style.left = (Math.random() * 55 + 10) + '%';
-            }, 200);
         }
         for (var r = 0; r < 4; r++) spawnRandom();
         setInterval(spawnRandom, 6000);
+        ` : '// Watermarks disabled'}
 
-        // ── Security: Block all dangerous actions ──
-        document.addEventListener('contextmenu', function(e) { e.preventDefault(); return false; });
+        // Security
+        document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
         document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey || e.metaKey || e.key === 'F12' || e.key === 'PrintScreen') {
-                e.preventDefault();
-                return false;
-            }
+            if (e.ctrlKey || e.metaKey || e.key === 'F12') { e.preventDefault(); return false; }
         });
         document.addEventListener('dragstart', function(e) { e.preventDefault(); });
         document.addEventListener('selectstart', function(e) { e.preventDefault(); });
         document.addEventListener('copy', function(e) { e.preventDefault(); });
 
-        // ── Block parent frame access ──
         try {
             Object.defineProperty(window, 'parent', { get: function() { return window; } });
             Object.defineProperty(window, 'top', { get: function() { return window; } });
         } catch(e) {}
 
-        // ── Block if opened directly (not in iframe) ──
         if (window === window.top) {
-            document.body.innerHTML = '<div style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;"><div><h1 style="font-size:4rem;">🚫</h1><h2>Direct Access Blocked</h2><p style="color:#888;margin-top:10px;">Videos can only be watched from the platform.</p><p style="color:#ff6b6b;margin-top:15px;font-size:0.85rem;">This attempt has been logged.</p></div></div>';
+            document.body.innerHTML = '<div style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;"><div><h1 style="font-size:4rem;">🚫</h1><h2>Direct Access Blocked</h2><p style="color:#888;margin-top:10px;">Videos can only be watched from the platform.</p></div></div>';
         }
-
-        // ── Disable console ──
-        try {
-            var noop = function(){};
-            ['log','debug','info','warn','error','table','trace','dir'].forEach(function(m) {
-                console[m] = noop;
-            });
-        } catch(e) {}
-
-        // ── Integrity check ──
-        setInterval(function() {
-            var layers = document.querySelectorAll('.iwm-layer, .iwm-center, .iwm-corner, .iwm-grid, .iwm-canvas');
-            if (layers.length < 5) {
-                document.body.innerHTML = '<div style="background:#0a0a1a;color:#ff4757;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;text-align:center;"><div><h1 style="font-size:4rem;">🚨</h1><h2>Tampering Detected</h2><p style="color:#888;margin-top:10px;">Watermark removal detected. Session terminated.</p></div></div>';
-            }
-        }, 3000);
     </script>
 </body>
 </html>
