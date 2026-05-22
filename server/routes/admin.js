@@ -272,5 +272,98 @@ router.get('/stats', adminAuth, async (req, res) => {
         res.status(500).json({ success: false, message: 'Error.' });
     }
 });
+// ========== HLS CONVERSION STATUS ==========
+
+// Get conversion stats
+router.get('/conversion-stats', adminAuth, async (req, res) => {
+    try {
+        const total = await Video.countDocuments({ isActive: true });
+        const ready = await Video.countDocuments({ hlsStatus: 'ready', isActive: true });
+        const pending = await Video.countDocuments({ hlsStatus: 'pending', isActive: true });
+        const converting = await Video.countDocuments({
+            hlsStatus: { $in: ['downloading', 'converting'] },
+            isActive: true
+        });
+        const failed = await Video.countDocuments({ hlsStatus: 'failed', isActive: true });
+
+        const videos = await Video.find({ isActive: true })
+            .select('title hlsStatus hlsProgress hlsError hlsConvertedAt duration')
+            .sort({ createdAt: -1 });
+
+        res.json({
+            success: true,
+            stats: {
+                total,
+                ready,
+                pending,
+                converting,
+                failed,
+                percentage: total > 0 ? Math.round((ready / total) * 100) : 0
+            },
+            videos
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error.' });
+    }
+});
+
+// Retry failed conversion
+router.post('/videos', adminAuth, async (req, res) => {
+    try {
+        const { title, description, mentorship, videoUrl, order } = req.body;
+
+        console.log('Adding video:', { title, mentorship, videoUrl });
+
+        if (!title) return res.status(400).json({ success: false, message: 'Title required.' });
+        if (!mentorship) return res.status(400).json({ success: false, message: 'Program required.' });
+        if (!videoUrl) return res.status(400).json({ success: false, message: 'URL required.' });
+
+        const video = new Video({
+            title: title.trim(),
+            description: description || '',
+            mentorship,
+            videoUrl: videoUrl.trim(),
+            order: parseInt(order) || 0,
+            hlsStatus: 'pending'
+        });
+
+        await video.save();
+        console.log('✅ Video saved:', video._id);
+
+        // Trigger HLS conversion in background
+        const { convertToHLS, ffmpegAvailable } = require('../hlsConverter');
+        if (ffmpegAvailable) {
+            console.log('🎬 Starting background HLS conversion...');
+            convertToHLS(video, Video); // Non-blocking
+        }
+
+        res.json({
+            success: true,
+            message: 'Video added! HLS conversion started in background.',
+            video: { id: video._id, title: video.title }
+        });
+
+    } catch (error) {
+        console.error('Add video error:', error);
+        res.status(500).json({ success: false, message: 'Error: ' + error.message });
+    }
+});
+
+// Convert all pending
+router.post('/convert-all', adminAuth, async (req, res) => {
+    try {
+        const { autoConvertPending, ffmpegAvailable } = require('../hlsConverter');
+        if (!ffmpegAvailable) {
+            return res.status(400).json({ success: false, message: 'FFmpeg not available.' });
+        }
+
+        autoConvertPending(Video); // Run in background
+
+        res.json({ success: true, message: 'Started converting all pending videos.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error.' });
+    }
+});
+
 
 module.exports = router;
