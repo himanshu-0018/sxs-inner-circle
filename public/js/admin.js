@@ -979,12 +979,14 @@ function logout() {
 loadStats();
 
 setTimeout(async () => {
-    // Load all data in background
-    await loadMentorships();
-    loadVideos();
-    loadKeys();
-    loadUsers();
-    // Pre-load mentorship options for forms
-    loadMentorshipDropdowns();
-    loadMentorshipCheckboxes();
+    try {
+        await loadMentorships();
+        loadVideos();
+        loadKeys();
+        loadUsers();
+        loadMentorshipDropdowns();
+        loadMentorshipCheckboxes();
+    } catch (err) {
+        console.error('Initial load error:', err);
+    }
 }, 500);
