@@ -36,7 +36,16 @@ function showAlert(type, msg) {
 
 function esc(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
 function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-'; }
-function openModal(id) { document.getElementById(id).classList.add('show'); if (id === 'videoModal' || id === 'keyModal') loadMentorshipOptions(); }
+function openModal(id) {
+    document.getElementById(id).classList.add('show');
+    loadMentorshipOptions();
+
+    // Clear previous generated keys display
+    if (id === 'keyModal') {
+        const genKeys = document.getElementById('generatedKeys');
+        if (genKeys) genKeys.innerHTML = '';
+    }
+}
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
 function showSection(section, el) {
