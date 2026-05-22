@@ -64,7 +64,7 @@ router.delete('/mentorships/:id', adminAuth, async (req, res) => {
 });
 
 // ========== VIDEO MANAGEMENT ==========
-('/videos', adminAuth, async (req, res) => {
+router.post('/videos', adminAuth, async (req, res) => {
     try {
         const { title, description, mentorship, videoUrl, order } = req.body;
         if (!title || !mentorship || !videoUrl) {
