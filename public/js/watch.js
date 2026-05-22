@@ -15,13 +15,18 @@
     let sessionRefreshInterval = null;
     let violationCount = 0;
     let alreadyBanned = false;
+    let screenRecordingDetected = false;
 
     // =============================================
-    // BAN USER - Report to Server & Lock Screen
+    // BAN USER
     // =============================================
     async function banUser(reason) {
         if (alreadyBanned) return;
         alreadyBanned = true;
+
+        // Stop video immediately
+        const frame = document.getElementById('videoFrame');
+        if (frame) frame.src = '';
 
         try {
             await fetch(`${API}/auth/report-violation`, {
@@ -32,26 +37,17 @@
                 },
                 body: JSON.stringify({ reason })
             });
-        } catch (e) {
-            // Silent fail
-        }
+        } catch (e) { }
 
-        // Lock the entire screen
         showBanScreen(reason);
     }
 
     function showBanScreen(reason) {
-        // Stop video
-        const frame = document.getElementById('videoFrame');
-        if (frame) frame.src = '';
-
-        // Clear all intervals
         if (sessionRefreshInterval) clearInterval(sessionRefreshInterval);
 
-        // Replace entire body
         document.body.innerHTML = `
-            <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0a0a1a;display:flex;align-items:center;justify-content:center;z-index:99999;">
-                <div style="text-align:center;padding:40px;max-width:500px;">
+            <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0a0a1a;display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;">
+                <div style="text-align:center;max-width:500px;">
                     <div style="font-size:5rem;margin-bottom:20px;">🚫</div>
                     <h1 style="color:#ff4757;font-size:1.8rem;margin-bottom:12px;">Account Suspended</h1>
                     <p style="color:#8888aa;line-height:1.7;margin-bottom:20px;">
@@ -63,40 +59,35 @@
                         </p>
                     </div>
                     <p style="color:#555;font-size:0.8rem;">
-                        Your identity (${user.name} - ${user.email}) has been logged.
+                        Your identity (${user.name || ''} - ${user.email || ''}) has been logged.
                         Contact admin if you believe this is a mistake.
                     </p>
                 </div>
             </div>
         `;
-
-        // Clear localStorage
         localStorage.clear();
     }
 
     function addViolation(reason) {
         violationCount++;
-
-        // First 2 violations = warning
-        // 3rd violation = BAN
         if (violationCount >= 3) {
             banUser(reason);
         } else {
-            showWarning(reason);
+            showWarningPopup(reason, violationCount);
         }
     }
 
-    function showWarning(reason) {
-        // Add red watermarks as warning
+    function showWarningPopup(reason, count) {
+        // Add red watermarks
         for (let i = 0; i < 8; i++) {
             const el = document.createElement('div');
-            el.textContent = `⚠️ WARNING: ${user.name} - ${user.email} - ${reason}`;
+            el.textContent = `⚠️ WARNING ${count}/3: ${user.name} - ${user.email}`;
             el.style.cssText = `
                 position:absolute;
                 top:${8 + i * 10}%;
                 left:2%;
                 color:rgba(255,0,0,0.45);
-                font-size:clamp(14px,2.5vw,22px);
+                font-size:clamp(13px,2vw,20px);
                 z-index:100;
                 pointer-events:none;
                 white-space:nowrap;
@@ -107,16 +98,15 @@
             wrapper.appendChild(el);
         }
 
-        // Show warning popup
         const popup = document.createElement('div');
         popup.style.cssText = `
             position:fixed;
             top:20px;
             left:50%;
             transform:translateX(-50%);
-            background:rgba(255,71,87,0.95);
+            background:rgba(255,71,87,0.97);
             color:#fff;
-            padding:15px 30px;
+            padding:16px 28px;
             border-radius:12px;
             z-index:9999;
             font-family:-apple-system,sans-serif;
@@ -127,12 +117,227 @@
             max-width:90%;
         `;
         popup.innerHTML = `
-            ⚠️ WARNING ${violationCount}/3: Suspicious activity detected!<br>
-            <span style="font-size:0.78rem;opacity:0.8;">Your account will be permanently banned on next violation.</span>
+            ⚠️ WARNING ${count}/3: Suspicious activity detected!<br>
+            <span style="font-size:0.78rem;opacity:0.9;">${reason}</span><br>
+            <span style="font-size:0.75rem;opacity:0.7;">Your account will be permanently banned on next violation.</span>
         `;
         document.body.appendChild(popup);
+        setTimeout(() => { if (popup.parentNode) popup.remove(); }, 6000);
+    }
 
-        setTimeout(() => popup.remove(), 5000);
+    // =============================================
+    // SCREEN RECORDING DETECTION
+    // =============================================
+    async function setupScreenRecordingDetection() {
+
+        // METHOD 1: Block getDisplayMedia (browser screen capture API)
+        if (navigator.mediaDevices) {
+            const origGetDisplayMedia = navigator.mediaDevices.getDisplayMedia?.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getDisplayMedia = async function (constraints) {
+                // They tried to screen record via browser
+                await banUser('Screen recording attempt detected via browser API (getDisplayMedia)');
+                return Promise.reject(new Error('Screen recording is not permitted on this platform.'));
+            };
+        }
+
+        // Also block on window level
+        if (window.navigator.mediaDevices) {
+            Object.defineProperty(window.navigator.mediaDevices, 'getDisplayMedia', {
+                value: async function () {
+                    await banUser('Screen recording attempt via getDisplayMedia override');
+                    return Promise.reject(new Error('Not allowed'));
+                },
+                writable: false,
+                configurable: false
+            });
+        }
+
+        // METHOD 2: Detect MediaRecorder usage
+        const OrigMediaRecorder = window.MediaRecorder;
+        if (OrigMediaRecorder) {
+            window.MediaRecorder = function (stream, options) {
+                // Check if the stream contains display/screen tracks
+                if (stream && stream.getVideoTracks) {
+                    const tracks = stream.getVideoTracks();
+                    tracks.forEach(track => {
+                        if (track.label && (
+                            track.label.toLowerCase().includes('screen') ||
+                            track.label.toLowerCase().includes('display') ||
+                            track.label.toLowerCase().includes('monitor') ||
+                            track.label.toLowerCase().includes('entire') ||
+                            track.label.toLowerCase().includes('window')
+                        )) {
+                            banUser('Screen recording detected via MediaRecorder API');
+                        }
+                    });
+                }
+                return new OrigMediaRecorder(stream, options);
+            };
+            window.MediaRecorder.prototype = OrigMediaRecorder.prototype;
+            window.MediaRecorder.isTypeSupported = OrigMediaRecorder.isTypeSupported;
+        }
+
+        // METHOD 3: Monitor getUserMedia for screen capture
+        if (navigator.mediaDevices?.getUserMedia) {
+            const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getUserMedia = async function (constraints) {
+                if (constraints && (constraints.video?.displaySurface ||
+                    constraints.video?.cursor ||
+                    JSON.stringify(constraints).includes('screen'))) {
+                    await banUser('Screen capture attempt detected via getUserMedia');
+                    return Promise.reject(new Error('Not allowed'));
+                }
+                return origGetUserMedia(constraints);
+            };
+        }
+
+        // METHOD 4: Detect Picture-in-Picture (often used to record)
+        document.addEventListener('enterpictureinpicture', async (e) => {
+            e.preventDefault();
+            document.exitPictureInPicture?.().catch(() => { });
+            await banUser('Picture-in-Picture recording attempt detected');
+        });
+
+        // METHOD 5: Page Visibility API
+        // When recording software alt-tabs, visibility changes rapidly
+        let hiddenCount = 0;
+        let hiddenTimer = null;
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                hiddenCount++;
+                // More than 20 rapid tab switches is suspicious
+                if (hiddenCount > 20) {
+                    addViolation('Excessive tab switching detected - possible screen recording software');
+                }
+            }
+        });
+
+        // METHOD 6: Detect screen sharing via WebRTC
+        // Some screen recorders use WebRTC internally
+        if (window.RTCPeerConnection) {
+            const OrigRTC = window.RTCPeerConnection;
+            window.RTCPeerConnection = function (...args) {
+                const pc = new OrigRTC(...args);
+                // Monitor for display media tracks added
+                pc.addEventListener('track', (e) => {
+                    if (e.track && e.track.kind === 'video') {
+                        const settings = e.track.getSettings?.();
+                        if (settings && settings.displaySurface) {
+                            banUser('Screen sharing via WebRTC detected');
+                        }
+                    }
+                });
+                return pc;
+            };
+            window.RTCPeerConnection.prototype = OrigRTC.prototype;
+        }
+
+        // METHOD 7: Monitor for OBS/Recording software via performance
+        // Recording software causes slight but detectable frame rate drops
+        let frameDropCount = 0;
+        let lastFrameTime = performance.now();
+        function checkFrameRate() {
+            const now = performance.now();
+            const delta = now - lastFrameTime;
+            lastFrameTime = now;
+
+            // If frame time is unusually high (>200ms), might be recording
+            if (delta > 200 && delta < 5000) {
+                frameDropCount++;
+                if (frameDropCount > 10) {
+                    // Too many frame drops = possible recording
+                    // Don't ban immediately as this could be slow internet
+                    // Just add extra watermarks
+                    addExtraWatermarks();
+                    frameDropCount = 0;
+                }
+            }
+            requestAnimationFrame(checkFrameRate);
+        }
+        requestAnimationFrame(checkFrameRate);
+
+        // METHOD 8: Keyboard shortcuts used by recording software
+        document.addEventListener('keydown', e => {
+            const recordingShortcuts = [
+                // OBS shortcuts
+                e.ctrlKey && e.altKey && e.key === 'r',
+                e.ctrlKey && e.altKey && e.key === 'R',
+                // Bandicam
+                e.key === 'F12' && !e.ctrlKey,
+                // Camtasia
+                e.ctrlKey && e.shiftKey && e.key === 'F9',
+                // Windows Game Bar
+                e.metaKey && e.altKey && e.key === 'r',
+                e.metaKey && e.altKey && e.key === 'R',
+                // Mac QuickTime / Screenshot
+                e.metaKey && e.shiftKey && e.key === '5',
+                e.metaKey && e.shiftKey && e.key === '6',
+                // ShareX
+                e.ctrlKey && e.shiftKey && e.key === 'F1',
+                // Snagit
+                e.ctrlKey && e.shiftKey && e.key === 'p',
+                e.ctrlKey && e.shiftKey && e.key === 'P',
+            ];
+
+            if (recordingShortcuts.some(s => s)) {
+                e.preventDefault();
+                e.stopPropagation();
+                banUser('Screen recording keyboard shortcut detected');
+                return false;
+            }
+        }, true);
+    }
+
+    // Add extra visible watermarks when suspicious activity detected
+    function addExtraWatermarks() {
+        if (!wrapper) return;
+        const el = document.createElement('div');
+        el.textContent = `${user.name} | ${user.email} | ${new Date().toLocaleString()}`;
+        el.style.cssText = `
+            position:absolute;
+            top:${Math.random() * 80 + 5}%;
+            left:${Math.random() * 50 + 10}%;
+            color:rgba(255,255,255,0.20);
+            font-size:clamp(14px,2.2vw,22px);
+            z-index:50;
+            pointer-events:none;
+            white-space:nowrap;
+            font-family:'Courier New',monospace;
+            font-weight:bold;
+            text-shadow:0 0 5px rgba(0,0,0,0.8);
+            transform:rotate(${Math.random() * 20 - 10}deg);
+        `;
+        wrapper.appendChild(el);
+
+        // Remove after 10 seconds
+        setTimeout(() => { if (el.parentNode) el.remove(); }, 10000);
+    }
+
+    // Make watermarks MORE visible when screen recording suspected
+    function maxWatermarkMode() {
+        if (!wrapper) return;
+
+        // Add 20 bright watermarks
+        for (let i = 0; i < 20; i++) {
+            const el = document.createElement('div');
+            el.textContent = `${user.name} • ${user.email} • SxS INNER CIRCLE`;
+            el.style.cssText = `
+                position:absolute;
+                top:${Math.random() * 85 + 2}%;
+                left:${Math.random() * 60 + 5}%;
+                color:rgba(255,255,255,0.30);
+                font-size:clamp(16px,2.5vw,26px);
+                z-index:50;
+                pointer-events:none;
+                white-space:nowrap;
+                font-family:'Courier New',monospace;
+                font-weight:bold;
+                text-shadow:0 0 8px rgba(0,0,0,0.9),2px 2px 4px rgba(0,0,0,0.8);
+                transform:rotate(${Math.random() * 30 - 15}deg);
+                animation: wmPulseExtra 3s ease-in-out infinite;
+            `;
+            wrapper.appendChild(el);
+        }
     }
 
     // =============================================
@@ -190,8 +395,16 @@
             // Setup fullscreen
             setupFullscreen();
 
+            // Setup screen recording detection
+            await setupScreenRecordingDetection();
+
             // Refresh session every 30 minutes
             sessionRefreshInterval = setInterval(refreshSession, 30 * 60 * 1000);
+
+            // Periodically boost watermarks every 5 minutes
+            setInterval(() => {
+                addExtraWatermarks();
+            }, 5 * 60 * 1000);
 
         } catch (err) {
             console.error('loadVideo error:', err);
@@ -219,7 +432,6 @@
     function setupFullscreen() {
         const fsBtn = document.getElementById('fullscreenBtn');
         if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
-
         document.addEventListener('fullscreenchange', updateFS);
         document.addEventListener('webkitfullscreenchange', updateFS);
     }
@@ -274,7 +486,7 @@
         // LAYER 3: Center pulse
         document.getElementById('wmCenter').textContent = wmFull;
 
-        // LAYER 4: Corners
+        // LAYER 4: Corners + live timestamp
         document.getElementById('wmTL').textContent = wmShort;
         document.getElementById('wmTR').textContent = `ID: ${wm.id}`;
         document.getElementById('wmBL').textContent = wm.email;
@@ -284,7 +496,7 @@
             if (el) el.textContent = new Date().toLocaleString();
         }, 1000);
 
-        // LAYER 5: Random
+        // LAYER 5: Random repositioning
         function spawnRandom() {
             const existing = wrapper.querySelectorAll('.wm-random');
             if (existing.length > 10) existing[0].remove();
@@ -333,7 +545,7 @@
         for (let y = 50; y < canvas.height; y += 55) {
             for (let x = 80; x < canvas.width; x += 300) {
                 ctx.save(); ctx.translate(x, y); ctx.rotate(0.2);
-                ctx.fillText(forensicText, 0, 0); ctx.restore();
+                ctx.fillText(`${forensicText}|${Date.now()}`, 0, 0); ctx.restore();
             }
         }
 
@@ -342,146 +554,115 @@
     }
 
     // =============================================
-    // ANTI PIRACY - DETECTION & AUTO BAN SYSTEM
+    // ANTI PIRACY - BLOCK + BAN
     // =============================================
 
-    // 1. Block right click
+    // Block right click
     document.addEventListener('contextmenu', e => {
         e.preventDefault();
         e.stopPropagation();
-        addViolation('Right-click attempt detected');
+        addViolation('Right-click attempt');
         return false;
     }, true);
 
-    // 2. Block dangerous keyboard shortcuts
+    // Block keyboard shortcuts
     document.addEventListener('keydown', e => {
-        // DevTools shortcuts
         if (e.key === 'F12') {
             e.preventDefault();
-            e.stopPropagation();
-            banUser('DevTools opened via F12 key');
+            banUser('DevTools opened via F12');
             return false;
         }
-
-        if (e.ctrlKey && e.shiftKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(e.key)) {
+        if (e.ctrlKey && e.shiftKey && ['i','I','j','J','c','C','k','K'].includes(e.key)) {
             e.preventDefault();
-            e.stopPropagation();
             banUser('DevTools opened via keyboard shortcut');
             return false;
         }
-
-        // Source code / save shortcuts
         if (e.ctrlKey && e.key === 'u') {
             e.preventDefault();
-            e.stopPropagation();
-            banUser('View source attempt detected');
+            banUser('View source attempt');
             return false;
         }
-
         if (e.ctrlKey && e.key === 's') {
             e.preventDefault();
-            e.stopPropagation();
             addViolation('Save page attempt');
             return false;
         }
-
         if (e.ctrlKey && e.key === 'p') {
             e.preventDefault();
             addViolation('Print attempt');
             return false;
         }
-
-        // Mac DevTools
-        if (e.metaKey && e.altKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(e.key)) {
+        if (e.metaKey && e.altKey && ['i','I','j','J'].includes(e.key)) {
             e.preventDefault();
-            e.stopPropagation();
             banUser('DevTools opened via Mac shortcut');
             return false;
         }
-
-        // Mac screenshots
-        if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
-            e.preventDefault();
-            addViolation('Screenshot attempt');
-            return false;
-        }
-
-        // PrintScreen
         if (e.key === 'PrintScreen') {
             e.preventDefault();
             navigator.clipboard?.writeText?.('');
             addViolation('Screenshot attempt');
             return false;
         }
-
-        // Fullscreen toggle
+        if (e.metaKey && e.shiftKey && ['3','4','5','6'].includes(e.key)) {
+            e.preventDefault();
+            addViolation('Screenshot attempt');
+            return false;
+        }
         if (e.key === 'f' || e.key === 'F') {
             e.preventDefault();
             toggleFullscreen();
         }
     }, true);
 
-    // 3. Block drag
-    document.addEventListener('dragstart', e => { e.preventDefault(); }, true);
+    // Block drag
+    document.addEventListener('dragstart', e => e.preventDefault(), true);
 
-    // 4. DevTools detection via window size
+    // Block copy
+    document.addEventListener('copy', e => {
+        e.preventDefault();
+        addViolation('Copy attempt');
+    }, true);
+
+    // DevTools window size detection
     let devToolsDetected = false;
     setInterval(() => {
-        const widthDiff = window.outerWidth - window.innerWidth > 160;
-        const heightDiff = window.outerHeight - window.innerHeight > 160;
-
-        if ((widthDiff || heightDiff) && !devToolsDetected) {
+        const w = window.outerWidth - window.innerWidth > 160;
+        const h = window.outerHeight - window.innerHeight > 160;
+        if ((w || h) && !devToolsDetected) {
             devToolsDetected = true;
-            banUser('Browser Developer Tools opened (window size anomaly detected)');
+            banUser('Browser DevTools opened (window size detection)');
         }
     }, 1000);
 
-    // 5. DevTools detection via debugger timing
-    let debuggerChecks = 0;
-    function checkDebugger() {
+    // DevTools debugger detection
+    let dbgChecks = 0;
+    setInterval(() => {
         const start = performance.now();
-        // debugger statement only pauses when DevTools is open
-        (function() { debugger; })();
-        const duration = performance.now() - start;
-
-        if (duration > 100) {
-            debuggerChecks++;
-            if (debuggerChecks >= 2) {
-                banUser('Browser Developer Tools detected (debugger timing anomaly)');
-            }
+        (function () { debugger; })();
+        if (performance.now() - start > 100) {
+            dbgChecks++;
+            if (dbgChecks >= 2) banUser('DevTools debugger detected');
         }
-    }
-    // Run debugger check every 5 seconds
-    setInterval(checkDebugger, 5000);
+    }, 5000);
 
-    // 6. DevTools detection via console.log override
-    const devtoolsDetector = new Image();
-    Object.defineProperty(devtoolsDetector, 'id', {
+    // Console object detection
+    const devImg = new Image();
+    Object.defineProperty(devImg, 'id', {
         get: function () {
-            banUser('Browser DevTools console opened (object inspection detected)');
+            banUser('DevTools console opened');
         }
     });
-    setInterval(() => {
-        console.log('%c', devtoolsDetector);
-    }, 3000);
+    setInterval(() => { console.log('%c', devImg); }, 3000);
 
-    // 7. Block screen recording
-    if (navigator.mediaDevices?.getDisplayMedia) {
-        navigator.mediaDevices.getDisplayMedia = function () {
-            banUser('Screen recording attempt detected');
-            return Promise.reject(new Error('Not allowed'));
-        };
-    }
-
-    // 8. Watermark integrity check
+    // Watermark integrity check
     setInterval(() => {
         const layers = wrapper.querySelectorAll('.watermark-layer, .wm-center, .wm-corner');
         if (layers.length < 6) {
-            banUser('Watermark tampering detected - elements removed from DOM');
+            banUser('Watermark tampering - DOM elements removed');
         }
     }, 3000);
 
-    // 9. MutationObserver - detect element removal
+    // MutationObserver
     const observer = new MutationObserver((mutations) => {
         mutations.forEach(mutation => {
             mutation.removedNodes.forEach(node => {
@@ -489,62 +670,30 @@
                     node.classList.contains('watermark-layer') ||
                     node.classList.contains('wm-center') ||
                     node.classList.contains('wm-corner') ||
-                    node.classList.contains('wm-canvas') ||
-                    node.classList.contains('iframe-shield') ||
-                    node.classList.contains('iframe-bottom-shield') ||
-                    node.classList.contains('iframe-top-shield')
+                    node.classList.contains('wm-canvas')
                 )) {
-                    // Re-add removed element
                     wrapper.appendChild(node);
-                    addViolation('DOM tampering - watermark element removed');
+                    addViolation('DOM tampering - watermark removed');
                 }
             });
         });
     });
     observer.observe(wrapper, { childList: true, subtree: false });
 
-    // 10. Block iframe embedding of this page
+    // Block iframe embedding
     if (window.top !== window.self) {
         document.body.innerHTML = '<h1 style="color:red;text-align:center;padding:50px;">Embedding not allowed</h1>';
     }
 
-    // 11. Block accessing page source via fetch
-    const origFetch = window.fetch;
-    window.fetch = function (...args) {
-        const url = (args[0]?.url || args[0] || '').toString();
-        if (url.includes('secure-frame') && !url.includes(currentSessionToken)) {
-            addViolation('Unauthorized API access attempt');
-            return Promise.reject(new Error('Blocked'));
-        }
-        return origFetch.apply(this, args);
-    };
-
-    // 12. Detect page visibility changes (suspicious tab switching)
-    let tabSwitchCount = 0;
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            tabSwitchCount++;
-            if (tabSwitchCount > 15) {
-                addViolation('Excessive tab switching detected (possible recording)');
-            }
-        }
-    });
-
-    // 13. Block copy/paste
-    document.addEventListener('copy', e => {
-        e.preventDefault();
-        addViolation('Copy attempt');
-        return false;
-    }, true);
-
-    // 14. Disable console methods (make debugging harder)
+    // Disable console
     const noop = () => {};
-    ['log', 'debug', 'info', 'warn', 'error', 'table', 'trace', 'dir'].forEach(method => {
-        // Keep a reference for our own use but disable for others
-        window.console[method] = noop;
-    });
+    try {
+        ['log','debug','info','warn','error','table','trace','dir'].forEach(m => {
+            window.console[m] = noop;
+        });
+    } catch (e) { }
 
-    // Cleanup on page leave
+    // Cleanup on leave
     window.addEventListener('beforeunload', () => {
         if (sessionRefreshInterval) clearInterval(sessionRefreshInterval);
     });
