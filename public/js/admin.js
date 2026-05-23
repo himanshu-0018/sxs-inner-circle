@@ -110,7 +110,7 @@ function showSection(section, el) {
         upload: loadUploadSection,
         keys: loadKeys,
         users: loadUsers,
-        profile: loadProfile
+        profile: loadProfile,
         conversion: loadConversion  // ← ADD THIS
     };
 
