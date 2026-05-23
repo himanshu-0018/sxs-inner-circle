@@ -42,35 +42,57 @@ app.use(cors({ origin: false }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Fix for Railway
+// ✅ Fix for Railway proxy
 app.set('trust proxy', 1);
 
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 200,
-    validate: { trustProxy: false }
+// ✅ ADMIN rate limiter - very lenient (admin panel fires many requests)
+const adminLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,   // 1 minute window
+    max: 300,                    // 300 requests per minute for admin
+    standardHeaders: true,
+    legacyHeaders: false,
+    // ✅ Return JSON not plain text - fixes the crash in admin.js
+    message: { success: false, message: 'Too many requests. Please wait a moment.' },
+    skip: (req) => {
+        // Skip rate limiting if valid admin token (optional extra leniency)
+        return false;
+    }
 });
-app.use('/api/', limiter);
 
+// ✅ General API rate limiter
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15 minutes
+    max: 500,                    // Increased from 200
+    standardHeaders: true,
+    legacyHeaders: false,
+    // ✅ Return JSON not plain text
+    message: { success: false, message: 'Too many requests. Please slow down.' }
+});
+
+// ✅ Auth limiter (keep strict)
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 15,
-    validate: { trustProxy: false }
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many login attempts. Try again later.' }
 });
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
 
+// ✅ Video stream limiter
 const videoLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 10,
-    validate: { trustProxy: false },
-    message: {
-        success: false,
-        message: 'Too many requests. Slow down.'
-    }
+    max: 30,                     // Increased from 10
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests. Slow down.' }
 });
+
+// ✅ Apply limiters in correct ORDER (specific first, general last)
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 app.use('/api/videos/secure-stream', videoLimiter);
+app.use('/api/admin', adminLimiter);   // ✅ Lenient for admin panel
+app.use('/api/', limiter);             // ✅ General for everything else
 
 // Serve static files
 app.use(express.static(path.join(__dirname, '../public')));
@@ -129,7 +151,6 @@ mongoose.connect(process.env.MONGODB_URI)
                 mentorships: [defaultMentorship._id]
             });
             await admin.save();
-
             console.log('👤 Admin created:', process.env.ADMIN_EMAIL);
         }
 
@@ -141,12 +162,10 @@ mongoose.connect(process.env.MONGODB_URI)
             const { autoConvertPending, ffmpegAvailable } = require('./hlsConverter');
             if (ffmpegAvailable) {
                 const VideoModel = require('./models/Video');
-                // Start conversion after 10 seconds (let server fully boot)
                 setTimeout(() => {
                     autoConvertPending(VideoModel);
                 }, 10000);
 
-                // Check for new pending videos every 5 minutes
                 setInterval(() => {
                     autoConvertPending(VideoModel);
                 }, 5 * 60 * 1000);
