@@ -9,7 +9,32 @@ if (!token || (user.role !== 'admin' && user.role !== 'superadmin')) {
 const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
 // =============================================
-// API HELPER
+// MENTORSHIP CACHE (stops triple API calls)
+// =============================================
+let mentorshipCache = null;
+let mentorshipCacheTime = 0;
+const CACHE_TTL = 30000; // 30 seconds
+
+async function getMentorships() {
+    const now = Date.now();
+    if (mentorshipCache && (now - mentorshipCacheTime) < CACHE_TTL) {
+        return mentorshipCache; // ✅ Return cached version
+    }
+    const data = await api('/admin/mentorships');
+    if (data && data.success) {
+        mentorshipCache = data;
+        mentorshipCacheTime = now;
+    }
+    return data;
+}
+
+function clearMentorshipCache() {
+    mentorshipCache = null;
+    mentorshipCacheTime = 0;
+}
+
+// =============================================
+// API HELPER - Fixed to handle 429 + non-JSON
 // =============================================
 async function api(url, method, body) {
     try {
@@ -17,13 +42,29 @@ async function api(url, method, body) {
         if (body) opts.body = JSON.stringify(body);
         const res = await fetch(`${API}${url}`, opts);
 
+        // ✅ Redirect on auth failure
         if (res.status === 401 || res.status === 403) {
             localStorage.clear();
             window.location.href = '/login.html';
             return { success: false };
         }
 
-        return res.json();
+        // ✅ Handle rate limit gracefully (no more crash)
+        if (res.status === 429) {
+            console.warn('Rate limited:', url);
+            showAlert('error', '⏳ Too many requests. Please wait a moment...');
+            return { success: false, message: 'Rate limited. Please wait.' };
+        }
+
+        // ✅ Safe JSON parse (handles plain text error responses)
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch {
+            console.error('Non-JSON response from', url, ':', text);
+            return { success: false, message: 'Server error. Try again.' };
+        }
+
     } catch (err) {
         console.error('API Error:', err);
         return { success: false, message: 'Network error. Check connection.' };
@@ -66,16 +107,13 @@ function fmtSize(bytes) {
 function openModal(id) {
     document.getElementById(id).classList.add('show');
 
-    // Clear previous generated keys display
     if (id === 'keyModal') {
         const genKeys = document.getElementById('generatedKeys');
         if (genKeys) genKeys.innerHTML = '';
-        // Load mentorships for checkboxes
         loadMentorshipCheckboxes();
     }
 
     if (id === 'videoModal') {
-        // Load mentorships for video dropdown
         loadMentorshipDropdowns();
     }
 }
@@ -88,21 +126,16 @@ function closeModal(id) {
 // SECTION NAVIGATION
 // =============================================
 function showSection(section, el) {
-    // Hide all sections
     document.querySelectorAll('[id^="section-"]').forEach(s => s.style.display = 'none');
 
-    // Show selected section
     const target = document.getElementById(`section-${section}`);
     if (target) target.style.display = 'block';
 
-    // Remove active from all buttons
     document.querySelectorAll('.admin-sidebar .menu-item').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.mobile-admin-nav button').forEach(b => b.classList.remove('active'));
 
-    // Set active on clicked button
     if (el) el.classList.add('active');
 
-    // Load data for section
     const loaders = {
         dashboard: loadStats,
         mentorships: loadMentorships,
@@ -111,20 +144,20 @@ function showSection(section, el) {
         keys: loadKeys,
         users: loadUsers,
         profile: loadProfile,
-        conversion: loadConversion  // ← ADD THIS
+        conversion: loadConversion
     };
 
     if (loaders[section]) loaders[section]();
 }
 
 // =============================================
-// LOAD MENTORSHIP OPTIONS (Shared)
+// LOAD MENTORSHIP OPTIONS (Shared - Uses Cache)
 // =============================================
 
-// Load mentorships into DROPDOWNS (for video forms)
+// Load mentorships into DROPDOWNS
 async function loadMentorshipDropdowns() {
     try {
-        const data = await api('/admin/mentorships');
+        const data = await getMentorships(); // ✅ Uses cache
         if (!data || !data.success || !data.mentorships) return;
 
         const dropdownIds = ['fuMentorship', 'vuMentorship', 'vMentorship'];
@@ -142,10 +175,10 @@ async function loadMentorshipDropdowns() {
     }
 }
 
-// Load mentorships into CHECKBOXES (for key generation)
+// Load mentorships into CHECKBOXES
 async function loadMentorshipCheckboxes() {
     try {
-        const data = await api('/admin/mentorships');
+        const data = await getMentorships(); // ✅ Uses cache
         if (!data || !data.success || !data.mentorships) return;
 
         const container = document.getElementById('kMentorships');
@@ -272,6 +305,7 @@ document.getElementById('mentorshipForm')?.addEventListener('submit', async (e) 
     if (data.success) {
         showAlert('success', '✅ Program created!');
         closeModal('mentorshipModal');
+        clearMentorshipCache(); // ✅ Clear cache so new program shows
         loadMentorships();
         loadStats();
         document.getElementById('mentorshipForm').reset();
@@ -287,6 +321,7 @@ async function deleteMentorship(id) {
     const data = await api(`/admin/mentorships/${id}`, 'DELETE');
     if (data.success) {
         showAlert('success', 'Program deleted!');
+        clearMentorshipCache(); // ✅ Clear cache
         loadMentorships();
         loadStats();
     } else {
@@ -507,11 +542,9 @@ function switchUploadTab(tab) {
         if (tabUrl) tabUrl.className = 'btn btn-primary btn-small';
     }
 
-    // Make sure both tabs have flex:1
     if (tabUpload) tabUpload.style.flex = '1';
     if (tabUrl) tabUrl.style.flex = '1';
 
-    // Reload dropdowns when switching tabs
     loadMentorshipDropdowns();
 }
 
@@ -564,15 +597,12 @@ async function loadKeys() {
     }).join('');
 }
 
-// Key generation form
 document.getElementById('keyForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Get all checked mentorship checkboxes
     const checkboxes = document.querySelectorAll('#kMentorships input[type="checkbox"]:checked');
     const mentorships = Array.from(checkboxes).map(cb => cb.value);
 
-    // Validate
     if (mentorships.length === 0) {
         showAlert('error', '❌ Please select at least one mentorship program!');
         return;
@@ -969,7 +999,6 @@ async function convertAllVideos() {
     btn.disabled = false;
     btn.textContent = '🔄 Convert All Pending';
 
-    // Auto refresh every 5 seconds while converting
     const refreshInterval = setInterval(async () => {
         await loadConversion();
         const statsData = await api('/admin/conversion-stats');
@@ -988,19 +1017,22 @@ function logout() {
 }
 
 // =============================================
-// INITIAL LOAD
+// INITIAL LOAD - Staggered to avoid 429
 // =============================================
-loadStats();
+loadStats(); // ✅ Load stats immediately
 
-setTimeout(async () => {
-    try {
-        await loadMentorships();
-        loadVideos();
-        loadKeys();
-        loadUsers();
-        loadMentorshipDropdowns();
-        loadMentorshipCheckboxes();
-    } catch (err) {
-        console.error('Initial load error:', err);
-    }
-}, 500);
+// ✅ Stagger all other loads 400ms apart
+const initialLoads = [
+    loadMentorships,
+    loadVideos,
+    loadKeys,
+    loadUsers,
+    loadMentorshipDropdowns,  // ✅ Will use cache from loadMentorships
+    loadMentorshipCheckboxes  // ✅ Will use cache from loadMentorships
+];
+
+initialLoads.forEach((fn, index) => {
+    setTimeout(() => {
+        try { fn(); } catch (err) { console.error('Load error:', err); }
+    }, (index + 1) * 400);
+});
